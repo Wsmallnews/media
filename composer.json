@@ -1,0 +1,83 @@
+{
+    "name": "wsmallnews/media",
+    "description": "Wsmallnews media library package",
+    "keywords": [
+        "Wsmallnews",
+        "laravel",
+        "filamentphp",
+        "filament",
+        "filament-plugin",
+        "media"
+    ],
+    "homepage": "https://github.com/wsmallnews/media",
+    "support": {
+        "issues": "https://github.com/wsmallnews/media/issues",
+        "source": "https://github.com/wsmallnews/media"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "smallnews",
+            "email": "1371606921@qq.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "filament/filament": "^4.0 || ^5.0",
+        "spatie/laravel-package-tools": "^1.15.0",
+        "wsmallnews/support": "^1.0"
+    },
+    "require-dev": {
+        "larastan/larastan": "^2.0 || ^3.0",
+        "laravel/pint": "^1.0",
+        "nunomaduro/collision": "^7.0 || ^8.0",
+        "orchestra/testbench": "^9.0 || ^10.0",
+        "pestphp/pest": "^2.0 || ^3.0 || ^4.0",
+        "pestphp/pest-plugin-arch": "^2.0 || ^3.0 || ^4.0",
+        "pestphp/pest-plugin-laravel": "^2.0 || ^3.0 || ^4.0",
+        "pestphp/pest-plugin-livewire": "^2.0 || ^3.0 || ^4.0",
+        "rector/rector": "^2.0",
+        "spatie/laravel-ray": "^1.26"
+    },
+    "autoload": {
+        "psr-4": {
+            "Wsmallnews\\Media\\": "src/",
+            "Wsmallnews\\Media\\Database\\Factories\\": "database/factories/"
+        },
+        "files": [
+            "./src/Helpers/helper.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Wsmallnews\\Media\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "post-autoload-dump": "@php ./vendor/bin/testbench package:discover --ansi",
+        "analyse": "phpstan analyse",
+        "lint": "pint",
+        "refactor": "rector",
+        "test": "pest",
+        "test:lint": "pint --test",
+        "test:refactor": "rector --dry-run"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Wsmallnews\\Media\\MediaServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "composer/package-versions-deprecated": true,
+            "pestphp/pest-plugin": true,
+            "phpstan/extension-installer": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
