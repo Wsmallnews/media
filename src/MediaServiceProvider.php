@@ -12,7 +12,6 @@ use Livewire\Livewire;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Wsmallnews\Media\Commands\MediaInstallCommand;
-use Wsmallnews\Media\Livewire\Components\Picker;
 use Wsmallnews\Media\Support\MediaManager;
 use Wsmallnews\Media\Support\Utils;
 use Wsmallnews\Support\Features\Modules\Module;
@@ -30,7 +29,7 @@ class MediaServiceProvider extends PackageServiceProvider
             ->hasCommands($this->getCommands())
             ->hasConfigFile()
             ->hasMigrations($this->getMigrations())
-            ->hasRoutes()
+            ->hasRoutes('media')
             ->hasTranslations()
             ->hasViews(static::$viewNamespace);
     }
@@ -50,8 +49,11 @@ class MediaServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
-        // 选择弹窗（MediaPicker 字段内嵌）
-        Livewire::component('sn-media::components.picker', Picker::class);
+        // 组件命名空间：sn-media::components.picker => Wsmallnews\Media\Livewire\Components\Picker（逐段大写反查）
+        Livewire::addNamespace(
+            namespace: 'sn-media',
+            classNamespace: 'Wsmallnews\\Media\\Livewire'
+        );
 
         // Asset Registration
         FilamentAsset::register(
@@ -84,9 +86,9 @@ class MediaServiceProvider extends PackageServiceProvider
     {
         return [
             // 素材管理页本地交互态（累积多选 / 视图切换 / 拖拽上传 / 复制路径）
-            AlpineComponent::make('sn-media-manager', __DIR__ . '/../../resources/js/components/media-manager.js'),
+            AlpineComponent::make('sn-media-manager', __DIR__ . '/../resources/js/components/media-manager.js'),
             // MediaPicker 字段本地状态（选中回填 / 排序）
-            AlpineComponent::make('sn-media-picker-field', __DIR__ . '/../../resources/js/components/picker-field.js'),
+            AlpineComponent::make('sn-media-picker-field', __DIR__ . '/../resources/js/components/picker-field.js'),
         ];
     }
 

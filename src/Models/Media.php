@@ -29,7 +29,7 @@ class Media extends SupportModel
      */
     public static function getModelLabel(): string
     {
-        return __('sn-media::media.media.model_label');
+        return __('sn-media::media.model_label');
     }
 
     /**

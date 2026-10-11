@@ -100,9 +100,9 @@ class MediaValue
         $disks = (array) ($transforms['disks'] ?? []);
         $providers = (array) ($transforms['providers'] ?? []);
 
-        $provider = $disks[$disk]
-            ?? $providers[config("filesystems.disks.{$disk}.driver")]
-            ?? null;
+        // 盘名映射优先（值为 provider 键），其次按盘 driver 推断
+        $providerKey = $disks[$disk] ?? config("filesystems.disks.{$disk}.driver");
+        $provider = is_string($providerKey) ? ($providers[$providerKey] ?? null) : null;
 
         return is_array($provider) ? ($provider['resize'] ?? null) : null;
     }
