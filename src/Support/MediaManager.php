@@ -7,6 +7,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Wsmallnews\Media\Exceptions\MediaException;
+use Wsmallnews\Media\Models\Media;
 
 class MediaManager
 {
@@ -15,7 +16,7 @@ class MediaManager
      *
      * @param  string|null  $directory  目录前缀（模块语义，如 sn/shop/product；null = 配置默认）
      */
-    public function upload(UploadedFile $file, ?string $directory = null, ?Model $uploader = null, ?int $teamId = null): \Wsmallnews\Media\Models\Media
+    public function upload(UploadedFile $file, ?string $directory = null, ?Model $uploader = null, ?int $teamId = null): Media
     {
         $this->validate($file);
 
