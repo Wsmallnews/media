@@ -7,6 +7,7 @@ use Filament\Support\Assets\AlpineComponent;
 use Filament\Support\Assets\Asset;
 use Filament\Support\Facades\FilamentAsset;
 use Filament\Support\Facades\FilamentIcon;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Filesystem\Filesystem;
 use Livewire\Livewire;
 use Spatie\LaravelPackageTools\Package;
@@ -29,7 +30,7 @@ class MediaServiceProvider extends PackageServiceProvider
             ->hasCommands($this->getCommands())
             ->hasConfigFile()
             ->hasMigrations($this->getMigrations())
-            ->hasRoutes('media')
+            ->hasRoutes($this->getRoutes())
             ->hasTranslations()
             ->hasViews(static::$viewNamespace);
     }
@@ -49,15 +50,19 @@ class MediaServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
-        // 组件命名空间：sn-media::components.picker => Wsmallnews\Media\Livewire\Components\Picker（逐段大写反查）
-        Livewire::addNamespace(
-            namespace: 'sn-media',
-            classNamespace: 'Wsmallnews\\Media\\Livewire'
-        );
+        // 注册模型别名
+        Relation::enforceMorphMap([
+            'sn_media' => Utils::getMediaModel(),
+        ]);
 
         // Asset Registration
         FilamentAsset::register(
             $this->getAssets(),
+            $this->getAssetPackageName()
+        );
+
+        FilamentAsset::registerScriptData(
+            $this->getScriptData(),
             $this->getAssetPackageName()
         );
 
@@ -72,6 +77,12 @@ class MediaServiceProvider extends PackageServiceProvider
                 ], 'media-stubs');
             }
         }
+
+        // 注册 livewire 命名空间（自动发现 src/Livewire/ 下的组件）
+        Livewire::addNamespace(
+            namespace: 'sn-media',
+            classNamespace: 'Wsmallnews\\Media\\Livewire'
+        );
     }
 
     protected function getAssetPackageName(): ?string
@@ -86,9 +97,9 @@ class MediaServiceProvider extends PackageServiceProvider
     {
         return [
             // 素材管理页本地交互态（累积多选 / 视图切换 / 拖拽上传 / 复制路径）
-            AlpineComponent::make('sn-media-manager', __DIR__ . '/../resources/js/components/media-manager.js'),
+            AlpineComponent::make('sn-media-manager', __DIR__ . '/../resources/dist/components/media-manager.js'),
             // MediaPicker 字段本地状态（选中回填 / 排序）
-            AlpineComponent::make('sn-media-picker-field', __DIR__ . '/../resources/js/components/picker-field.js'),
+            AlpineComponent::make('sn-media-picker-field', __DIR__ . '/../resources/dist/components/picker-field.js'),
         ];
     }
 
@@ -106,6 +117,23 @@ class MediaServiceProvider extends PackageServiceProvider
      * @return array<string>
      */
     protected function getIcons(): array
+    {
+        return [];
+    }
+
+    /**
+     * @return array<string>
+     */
+    protected function getRoutes(): array
+    {
+        // 路由文件名（不含 .php，对应 routes/media.php）；web 中间件在路由文件内声明
+        return ['media'];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function getScriptData(): array
     {
         return [];
     }

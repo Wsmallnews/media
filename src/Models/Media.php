@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Wsmallnews\Media\Enums\MediaType;
 use Wsmallnews\Media\Support\MediaValue;
-use Wsmallnews\Media\Support\Utils;
 use Wsmallnews\Support\Models\SupportModel;
 use Wsmallnews\Support\Support\Utils as SupportUtils;
 
@@ -126,13 +125,5 @@ class Media extends SupportModel
     public function uploader(): MorphTo
     {
         return $this->morphTo();
-    }
-
-    /**
-     * 可替换模型解析
-     */
-    protected static function mediaModel(): string
-    {
-        return Utils::getMediaModel();
     }
 }
