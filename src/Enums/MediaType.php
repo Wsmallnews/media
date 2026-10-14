@@ -61,6 +61,32 @@ enum MediaType: string implements HasColor, HasIcon, HasLabel
         return $this !== self::File;
     }
 
+    /**
+     * 非图片瓦片短标签（PDF/DOC 等固定字母标，无需翻译）
+     */
+    public function getTileLabel(): string
+    {
+        return match ($this) {
+            self::Image => 'IMG',
+            self::Video => 'MP4',
+            self::Audio => 'MP3',
+            self::Pdf => 'PDF',
+            self::Word => 'DOC',
+            self::Excel => 'XLS',
+            self::Ppt => 'PPT',
+            self::Zip => 'ZIP',
+            self::File => 'FILE',
+        };
+    }
+
+    /**
+     * 类型瓦片 SVG URL（静态文件发布到 public/vendor，不依赖 Tailwind 动态类编译）
+     */
+    public function getTileUrl(): string
+    {
+        return asset("vendor/wsmallnews/media/images/tiles/{$this->value}.svg");
+    }
+
     public function getLabel(): string | Htmlable | null
     {
         return match ($this) {

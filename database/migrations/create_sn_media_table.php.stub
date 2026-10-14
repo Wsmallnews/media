@@ -9,8 +9,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('sn_media', function (Blueprint $table) {
+            $table->comment('素材');
+            $table->engine = 'InnoDB';
             $table->id();
-            $table->unsignedBigInteger('team_id')->nullable()->comment('租户ID(NULL=无租户上下文)');
+            $table->unsignedBigInteger('team_id')->nullable()->comment('团队ID');
             $table->string('disk', 32)->comment('存储盘');
             $table->string('path')->comment('相对路径(唯一身份证,生成后不可变)');
             $table->string('name')->comment('原始文件名(展示/下载用,可改)');

@@ -5,7 +5,6 @@ namespace Wsmallnews\Media\Filament\Forms;
 use Closure;
 use Filament\Forms\Components\Field;
 use Wsmallnews\Media\Support\MediaValue;
-use Wsmallnews\Media\Support\Utils;
 
 /**
  * 素材选择字段：统一上传管道 + 素材库复用。
@@ -23,8 +22,6 @@ class MediaPicker extends Field
     protected bool | Closure $isMultiple = false;
 
     protected int | float | Closure $ratio = 1;
-
-    protected string | Closure | null $directory = null;
 
     /** @var array<string> | Closure mime 模式（image/* 前缀或精确 mime），空 = 不限 */
     protected array | Closure $acceptedMimes = [];
@@ -60,13 +57,6 @@ class MediaPicker extends Field
         return $this;
     }
 
-    public function directory(string | Closure | null $directory): static
-    {
-        $this->directory = $directory;
-
-        return $this;
-    }
-
     /**
      * @param  array<string> | Closure  $mimes
      */
@@ -93,13 +83,6 @@ class MediaPicker extends Field
     public function getRatio(): float
     {
         return (float) $this->evaluate($this->ratio);
-    }
-
-    public function getDirectory(): string
-    {
-        $directory = $this->evaluate($this->directory);
-
-        return trim((string) ($directory ?: Utils::getConfig('directory', 'sn/media')), '/');
     }
 
     /**
@@ -132,7 +115,6 @@ class MediaPicker extends Field
             'multiple' => $multiple,
             'acceptedMimes' => $this->getAcceptedMimes(),
             'ratio' => $this->getRatio(),
-            'directory' => $this->getDirectory(),
             'statePath' => $this->getStatePath(),
             'initialValues' => $values,
             'urls' => $urls,

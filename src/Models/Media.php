@@ -24,14 +24,6 @@ class Media extends SupportModel
     ];
 
     /**
-     * 默认模型名称
-     */
-    public static function getModelLabel(): string
-    {
-        return __('sn-media::media.model_label');
-    }
-
-    /**
      * 按相对路径查记录（path 唯一索引）
      */
     public static function findByPath(string $path): ?self
@@ -75,6 +67,24 @@ class Media extends SupportModel
     protected function mediaType(): Attribute
     {
         return Attribute::get(fn () => MediaType::fromMime($this->mime, $this->ext));
+    }
+
+    /**
+     * 按逻辑目录筛选（含子孙目录的文件）
+     *
+     * @param  int|array<int, int>  $directoryIds
+     */
+    public function scopeInDirectories(Builder $query, int | array $directoryIds): Builder
+    {
+        return $query->whereIn('directory_id', (array) $directoryIds);
+    }
+
+    /**
+     * 未归类（directory_id 为 NULL）
+     */
+    public function scopeUncategorized(Builder $query): Builder
+    {
+        return $query->whereNull('directory_id');
     }
 
     /**
@@ -125,5 +135,13 @@ class Media extends SupportModel
     public function uploader(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    /**
+     * 逻辑目录
+     */
+    public function directory(): BelongsTo
+    {
+        return $this->belongsTo(MediaDirectory::class);
     }
 }

@@ -2,7 +2,6 @@
 
 namespace Wsmallnews\Media;
 
-use BadMethodCallException;
 use Filament\Support\Assets\AlpineComponent;
 use Filament\Support\Assets\Asset;
 use Filament\Support\Facades\FilamentAsset;
@@ -50,6 +49,12 @@ class MediaServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
+        // 对齐 Livewire 临时上传上限与 sn-media.max_size（Livewire 默认 max:12288/12MB，
+        // 低于 sn-media 上限时大文件会在临时上传阶段被静默拦截；仅用户未自定义 rules 时生效）
+        if (config('livewire.temporary_file_upload.rules') === null && ($maxSize = Utils::getConfig('max_size'))) {
+            config(['livewire.temporary_file_upload.rules' => ['file', 'max:' . (int) $maxSize]]);
+        }
+
         // 注册模型别名
         Relation::enforceMorphMap([
             'sn_media' => Utils::getMediaModel(),
@@ -76,6 +81,13 @@ class MediaServiceProvider extends PackageServiceProvider
                     $file->getRealPath() => base_path("stubs/media/{$file->getFilename()}"),
                 ], 'media-stubs');
             }
+
+            // 类型瓦片 SVG 发布到 public（Tailwind 动态类不靠谱，静态图最稳）
+            foreach (app(Filesystem::class)->files(__DIR__ . '/../resources/images/tiles/') as $file) {
+                $this->publishes([
+                    $file->getRealPath() => public_path("vendor/wsmallnews/media/images/tiles/{$file->getFilename()}"),
+                ], 'media-assets');
+            }
         }
 
         // 注册 livewire 命名空间（自动发现 src/Livewire/ 下的组件）
@@ -100,6 +112,8 @@ class MediaServiceProvider extends PackageServiceProvider
             AlpineComponent::make('sn-media-manager', __DIR__ . '/../resources/dist/components/media-manager.js'),
             // MediaPicker 字段本地状态（选中回填 / 排序）
             AlpineComponent::make('sn-media-picker-field', __DIR__ . '/../resources/dist/components/picker-field.js'),
+            // FilePicker 字段（直接选文件上传，不打开素材弹窗）
+            AlpineComponent::make('sn-media-file-picker-field', __DIR__ . '/../resources/dist/components/file-picker-field.js'),
         ];
     }
 
@@ -126,7 +140,6 @@ class MediaServiceProvider extends PackageServiceProvider
      */
     protected function getRoutes(): array
     {
-        // 路由文件名（不含 .php，对应 routes/media.php）；web 中间件在路由文件内声明
         return ['media'];
     }
 
@@ -145,15 +158,7 @@ class MediaServiceProvider extends PackageServiceProvider
     {
         return [
             'create_sn_media_table',
+            'create_sn_media_directories_table',
         ];
-    }
-
-    public function __call(string $method, array $arguments): mixed
-    {
-        if (method_exists(Utils::class, $method)) {
-            return Utils::$method(...$arguments);
-        }
-
-        throw new BadMethodCallException("Method {$method} does not exist on MediaServiceProvider");
     }
 }

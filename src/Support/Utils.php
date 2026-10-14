@@ -2,6 +2,7 @@
 
 namespace Wsmallnews\Media\Support;
 
+
 class Utils
 {
     /**

@@ -54,6 +54,7 @@ compile({
     entryPoints: [
         './resources/js/components/media-manager.js',
         './resources/js/components/picker-field.js',
+        './resources/js/components/file-picker-field.js',
     ],
     // 保持 dist/components/*.js 的产物布局（多入口共同目录在 components 时 esbuild 会拍平到 dist 根）
     outbase: './resources/js/',
