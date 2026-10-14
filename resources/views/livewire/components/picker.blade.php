@@ -3,75 +3,144 @@
     use Wsmallnews\Media\Enums\MediaType;
 @endphp
 
-<div class="flex max-h-[70vh] flex-col" wire:key="sn-media-picker-{{ md5($statePath) }}">
-    {{-- header + tabs --}}
-    <div class="flex items-center gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-        <h3 class="text-sm font-semibold">{{ __('sn-media::media.picker.select') }}</h3>
-        <div class="ml-auto flex items-center gap-1 rounded-lg bg-gray-100 p-1 text-sm dark:bg-gray-800">
-            <button wire:click="$set('tab', 'library')"
-                class="rounded-md px-3 py-1 {{ $tab === 'library' ? 'bg-white font-medium shadow-sm dark:bg-gray-700' : 'text-gray-500' }}">
-                {{ __('sn-media::media.picker.tab_library') }}
-            </button>
-            <button wire:click="$set('tab', 'upload')"
-                class="rounded-md px-3 py-1 {{ $tab === 'upload' ? 'bg-white font-medium shadow-sm dark:bg-gray-700' : 'text-gray-500' }}">
-                {{ __('sn-media::media.picker.tab_upload') }}
+<div class="flex h-[70vh] flex-col" wire:key="sn-media-picker-{{ md5($statePath) }}"
+    x-load
+    x-load-src="{{ \Filament\Support\Facades\FilamentAsset::getAlpineComponentSrc('sn-media-manager', 'wsmallnews/media') }}"
+    x-data="snMediaManager({{ \Illuminate\Support\Js::from([
+        'uploadingLabel' => __('sn-media::media.notifications.uploading'),
+        'rejectedLabel' => __('sn-media::media.notifications.upload_rejected_default'),
+        'tooLargeLabel' => __('sn-media::media.notifications.upload_too_large', ['name' => '__NAME__', 'max' => '__MAX__']),
+        'maxUploadKb' => min(
+            (int) (ini_get('upload_max_filesize') ? floor((float) ini_get('upload_max_filesize') * 1024) : 0) ?: 999999,
+            (int) config('livewire.temporary_file_upload.rules.1') ?: 999999,
+            (int) config('sn-media.max_size') ?: 999999,
+        ),
+    ]) }})">
+
+    {{-- 工具栏：面包屑 + 搜索 + 上传（直接拉起文件选择器） --}}
+    <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        {{-- 面包屑：目录 › 类型（组合筛选可视化，与管理页一致） --}}
+        <nav class="flex min-w-0 items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+            @if ($libraryDir === null)
+                <span class="font-medium text-gray-900 dark:text-gray-100">{{ __('sn-media::media.tree.all') }}</span>
+            @else
+                <button wire:click="setLibraryDir(null)" class="hover:text-primary-600">{{ __('sn-media::media.tree.all') }}</button>
+                <x-filament::icon :icon="Heroicon::OutlinedChevronRight" class="size-3.5" />
+                @if ($libraryDir === 0)
+                    <span class="font-medium text-gray-900 dark:text-gray-100">{{ __('sn-media::media.tree.uncategorized') }}</span>
+                @else
+                    @foreach ($this->libraryDirectories as $treeDir)
+                        @if ($treeDir['id'] === $libraryDir)
+                            <span class="max-w-40 truncate font-medium text-gray-900 dark:text-gray-100">{{ $treeDir['name'] }}</span>
+                        @endif
+                    @endforeach
+                @endif
+            @endif
+            @if ($libraryType !== '')
+                <x-filament::icon :icon="Heroicon::OutlinedChevronRight" class="size-3.5" />
+                <button wire:click="setLibraryType('')" class="hover:text-primary-600">{{ MediaType::tryFrom($libraryType)?->getLabel() }}</button>
+            @endif
+        </nav>
+
+        <div class="ml-auto flex items-center gap-2">
+            <div class="relative">
+                <x-filament::icon :icon="Heroicon::OutlinedMagnifyingGlass" class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+                <input type="text" wire:model.live.debounce.400ms="librarySearch" placeholder="{{ __('sn-media::media.toolbar.search_placeholder') }}"
+                    class="w-44 rounded-lg border border-gray-300 py-1.5 pl-8 pr-3 text-sm outline-none focus:border-primary-500 dark:border-gray-600 dark:bg-gray-800">
+            </div>
+
+            {{-- 上传：直接拉起系统文件选择器，归入当前浏览目录（JS 预检大小后手动 uploadMultiple） --}}
+            <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-500">
+                <x-filament::icon :icon="Heroicon::OutlinedArrowUpTray" class="size-4" />
+                {{ __('sn-media::media.toolbar.upload') }}
+                <input type="file" multiple class="hidden" @change="onFilePick($event)">
+            </label>
+
+            <button wire:click="$dispatch('sn-media-picker-closed', { statePath: '{{ $statePath }}' })"
+                class="grid size-7 place-items-center rounded-full text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+                <x-filament::icon :icon="Heroicon::OutlinedXMark" class="size-4" />
             </button>
         </div>
     </div>
 
-    {{-- body --}}
-    <div class="flex-1 overflow-y-auto p-4">
-        @if ($tab === 'library')
-            <p class="mb-2 text-xs text-gray-400">{{ __('sn-media::media.picker.library_hint') }}</p>
+    {{-- 上传进度条（连字符事件驱动） --}}
+    <div wire:loading.delay wire:target="uploads" wire:key="picker-progress-{{ md5($statePath) }}"
+        class="border-b border-primary-100 bg-primary-50/50 px-4 py-2 dark:border-primary-500/20 dark:bg-primary-500/5">
+        <div class="flex items-center justify-between text-xs">
+            <span class="font-medium text-primary-700 dark:text-primary-300">{{ __('sn-media::media.notifications.uploading') }}</span>
+        </div>
+        <div class="mt-1 h-1 overflow-hidden rounded-full bg-primary-100 dark:bg-primary-500/20">
+            <div class="h-full rounded-full bg-primary-500 animate-pulse transition-all duration-150" style="width: 100%"></div>
+        </div>
+    </div>
 
-            {{-- 类型 / 搜索过滤 --}}
-            <div class="mb-3 flex flex-wrap items-center gap-2">
-                <div class="flex flex-wrap gap-1">
-                    <button wire:click="$set('filterType', '')"
-                        class="rounded-full px-2.5 py-1 text-xs {{ $filterType === '' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400' }}">
-                        {{ __('sn-media::media.tree.all') }}
-                    </button>
-                    @foreach (MediaType::cases() as $type)
-                        @continue(! $type->isFilterable())
-                        <button wire:click="$set('filterType', '{{ $type->value }}')"
-                            class="rounded-full px-2.5 py-1 text-xs {{ $filterType === $type->value ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400' }}">
-                            {{ $type->getLabel() }}
-                        </button>
+    {{-- body：左目录树 + 右内容 --}}
+    <div class="flex min-h-0 flex-1">
+        <nav class="hidden w-44 shrink-0 overflow-y-auto border-r border-gray-200 p-2 text-xs sm:block dark:border-gray-700">
+            <p class="px-2 py-1 text-[10px] font-semibold tracking-wide text-gray-400">{{ __('sn-media::media.tree.directories') }}</p>
+
+            <button wire:click="setLibraryDir(null)"
+                class="block w-full rounded-md px-2 py-1.5 text-left {{ $libraryDir === null ? 'bg-primary-50 font-medium text-primary-700 dark:bg-primary-500/10 dark:text-primary-300' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800' }}">
+                {{ __('sn-media::media.tree.all') }}
+            </button>
+            <button wire:click="setLibraryDir(0)"
+                class="block w-full rounded-md px-2 py-1.5 text-left {{ $libraryDir === 0 ? 'bg-primary-50 font-medium text-primary-700 dark:bg-primary-500/10 dark:text-primary-300' : 'text-gray-400 italic hover:bg-gray-50 dark:text-gray-500 dark:hover:bg-gray-800' }}">
+                {{ __('sn-media::media.tree.uncategorized') }}
+            </button>
+            @foreach ($this->libraryDirectories as $treeDir)
+                <button wire:click="setLibraryDir({{ $treeDir['id'] }})"
+                    class="flex w-full items-center justify-between rounded-md px-2 py-1.5 {{ $libraryDir === $treeDir['id'] ? 'bg-primary-50 font-medium text-primary-700 dark:bg-primary-500/10 dark:text-primary-300' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800' }}"
+                    style="padding-left: {{ 8 + $treeDir['depth'] * 10 }}px">
+                    <span class="truncate">{{ $treeDir['name'] }}</span>
+                    <span class="text-[10px] text-gray-400">{{ $treeDir['count'] }}</span>
+                </button>
+            @endforeach
+        </nav>
+
+        <div class="flex-1 overflow-y-auto p-3">
+            {{-- 类型 chips + 窄屏目录下拉 --}}
+            <div class="mb-3 flex flex-wrap items-center gap-1.5">
+                <select wire:change="setLibraryDir($event.target.value === 'all' ? null : parseInt($event.target.value))"
+                    class="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs sm:hidden dark:border-gray-600 dark:bg-gray-800">
+                    <option value="all" @selected($libraryDir === null)>{{ __('sn-media::media.tree.all') }}</option>
+                    <option value="0" @selected($libraryDir === 0)>{{ __('sn-media::media.tree.uncategorized') }}</option>
+                    @foreach ($this->libraryDirectories as $treeDir)
+                        <option value="{{ $treeDir['id'] }}" @selected($libraryDir === $treeDir['id'])>
+                            {{ str_repeat('　', $treeDir['depth']) }}{{ $treeDir['name'] }}
+                        </option>
                     @endforeach
-                </div>
-                <input type="text" wire:model.live.debounce.400ms="search" placeholder="{{ __('sn-media::media.toolbar.search_placeholder') }}"
-                    class="ml-auto w-44 rounded-lg border border-gray-300 px-2.5 py-1 text-sm dark:border-gray-600 dark:bg-gray-800">
+                </select>
+
+                <button wire:click="setLibraryType('')"
+                    class="rounded-full px-2.5 py-1 text-xs {{ $libraryType === '' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700' }}">
+                    {{ __('sn-media::media.tree.all') }} <span class="ml-0.5 opacity-70">{{ $this->typeCounts['all'] ?? 0 }}</span>
+                </button>
+                @foreach (MediaType::cases() as $type)
+                    @continue(! $type->isFilterable())
+                    <button wire:click="setLibraryType('{{ $type->value }}')"
+                        class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs {{ $libraryType === $type->value ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700' }}">
+                        {{ $type->getLabel() }} <span class="opacity-70">{{ $this->typeCounts[$type->value] ?? 0 }}</span>
+                    </button>
+                @endforeach
             </div>
 
-            @if (count($this->medias) === 0)
-                <p class="py-10 text-center text-sm text-gray-400">{{ __('sn-media::media.picker.library_empty') }}</p>
+            @if (count($this->medias()) === 0)
+                <x-sn-support::empty :contained="false" :compact="true" :icon="Heroicon::OutlinedPhoto"
+                    :heading="__('sn-media::media.picker.empty_heading')"
+                    :description="__('sn-media::media.picker.empty')" />
             @else
                 <div class="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(96px,1fr))]">
-                    @foreach ($this->medias as $media)
+                    @foreach ($this->medias() as $media)
                         @php
                             $selected = in_array($media->id, $selection, true);
-                            $allowed = $this->allowsMime((string) $media->mime);
-                            $tile = match ($media->mediaType) {
-                                MediaType::Video => ['bg-purple-500', 'MP4'],
-                                MediaType::Audio => ['bg-pink-500', 'MP3'],
-                                MediaType::Pdf => ['bg-red-500', 'PDF'],
-                                MediaType::Word => ['bg-blue-600', 'DOC'],
-                                MediaType::Excel => ['bg-green-600', 'XLS'],
-                                MediaType::Ppt => ['bg-orange-500', 'PPT'],
-                                MediaType::Zip => ['bg-amber-500', 'ZIP'],
-                                MediaType::File => ['bg-gray-400', 'FILE'],
-                                default => ['', ''],
-                            };
-                        @endphp
-                        <div class="group relative flex cursor-pointer flex-col items-center gap-1 rounded-lg p-1.5 transition {{ $selected ? 'bg-primary-50 ring-2 ring-primary-500 dark:bg-primary-500/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800' }} {{ $allowed ? '' : 'cursor-not-allowed opacity-30' }}"
-                            @click="{{ $allowed ? "\$wire.toggle({$media->id})" : 'void 0' }}">
+                            @endphp
+                        <div class="group relative flex cursor-pointer flex-col items-center gap-1 rounded-lg p-1.5 transition {{ $selected ? 'bg-primary-50 ring-2 ring-primary-500 dark:bg-primary-500/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800' }}"
+                            wire:click="toggle({{ $media->id }})">
                             <div class="relative grid w-full place-items-center overflow-hidden rounded-md bg-gray-50 dark:bg-gray-800" style="aspect-ratio: {{ $ratio }}">
                                 @if ($media->isImage())
                                     <img src="{{ $media->url(200) }}" alt="{{ $media->alt ?: $media->name }}" class="size-full object-cover" loading="lazy" draggable="false">
                                 @else
-                                    <div class="grid size-14 place-items-center rounded-lg {{ $tile[0] }}">
-                                        <span class="text-xs font-bold text-white">{{ $tile[1] }}</span>
-                                    </div>
+                                    <img src="{{ $media->mediaType->getTileUrl() }}" alt="{{ $media->mediaType->getLabel() }}" class="size-14 rounded-lg">
                                 @endif
 
                                 @if ($selected)
@@ -85,31 +154,17 @@
                     @endforeach
                 </div>
 
-                @if ($this->medias->hasPages())
+                @if ($this->medias()->hasPages())
                     <div class="mt-3 flex items-center justify-center gap-2 text-xs">
-                        <button wire:click="previousPage" @if ($this->medias->onFirstPage()) disabled @endif
+                        <button wire:click="previousPage" @if ($this->medias()->onFirstPage()) disabled @endif
                             class="rounded-md border border-gray-200 bg-white px-2 py-1 disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800">‹</button>
-                        <span class="text-gray-500">{{ $this->medias->currentPage() }} / {{ $this->medias->lastPage() }}</span>
-                        <button wire:click="nextPage" @if (! $this->medias->hasMorePages()) disabled @endif
+                        <span class="text-gray-500">{{ $this->medias()->currentPage() }} / {{ $this->medias()->lastPage() }}</span>
+                        <button wire:click="nextPage" @if (! $this->medias()->hasMorePages()) disabled @endif
                             class="rounded-md border border-gray-200 bg-white px-2 py-1 disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800">›</button>
                     </div>
                 @endif
             @endif
-        @else
-            {{-- 本地上传 tab --}}
-            <label class="grid cursor-pointer place-items-center rounded-xl border-2 border-dashed border-gray-300 px-6 py-12 text-center transition hover:border-primary-400 dark:border-gray-600"
-                x-data
-                @dragenter.prevent @dragover.prevent @drop.prevent="$wire.uploadMultiple('uploads', $event.dataTransfer.files)">
-                <x-filament::icon :icon="Heroicon::OutlinedArrowUpTray" class="size-10 text-gray-300" />
-                <p class="mt-2 text-sm font-medium text-gray-600 dark:text-gray-300">{{ __('sn-media::media.picker.drop_here') }}</p>
-                <span class="mt-2 rounded-lg bg-primary-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-primary-500">{{ __('sn-media::media.picker.browse') }}</span>
-                <p class="mt-3 text-xs text-gray-400">{{ __('sn-media::media.picker.upload_hint') }}</p>
-                <input type="file" multiple class="hidden" wire:model="uploads">
-                <div wire:loading.delay wire:target="uploads" class="mt-3 text-xs font-medium text-primary-600">
-                    {{ __('sn-media::media.notifications.uploaded', ['count' => '...']) }}
-                </div>
-            </label>
-        @endif
+        </div>
     </div>
 
     {{-- footer --}}

@@ -9,7 +9,8 @@ export default function snMediaPickerField(props) {
         open: false,
         multiple: !!props.multiple,
         statePath: props.statePath || '',
-        values: props.initialValues || (props.multiple ? [] : null),
+        // 归一：单值取 initialValues[0] 或 null（空数组是 truthy，不能直接 || 兜底）；多值恒为数组
+        values: props.multiple ? (props.initialValues || []) : (props.initialValues?.[0] ?? null),
         urls: props.urls || {},
 
         onSelected(detail) {

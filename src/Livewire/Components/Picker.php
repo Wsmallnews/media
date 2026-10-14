@@ -2,25 +2,21 @@
 
 namespace Wsmallnews\Media\Livewire\Components;
 
-use Filament\Notifications\Notification;
 use Illuminate\Contracts\View\View;
-use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithFileUploads;
-use Livewire\WithPagination;
-use Wsmallnews\Media\Enums\MediaType;
-use Wsmallnews\Media\Support\MediaManager;
+use Wsmallnews\Media\Livewire\Concerns\InteractsWithMediaLibrary;
 use Wsmallnews\Media\Support\Utils;
 
 /**
- * 素材选择弹窗（内嵌组件）：约束一律经 props 注入，不读模块默认值。
- * 确认后 dispatch sn-media-selected（statePath + values + urls），由 MediaPicker 字段的
- * Alpine 监听回填表单状态；取消 dispatch sn-media-picker-closed 关闭弹窗。
+ * 素材选择弹窗（内嵌组件，与管理页同构：工具栏搜索/上传 + 左侧目录树 + 类型 chips + 组合筛选）。
+ * 约束一律经 props 注入；字段不配目录（选素材全库选，上传归当前浏览目录）。
+ * 确认后 dispatch sn-media-selected（statePath + values + urls），由 MediaPicker 字段 Alpine 回填。
  */
 class Picker extends Component
 {
+    use InteractsWithMediaLibrary;
     use WithFileUploads;
-    use WithPagination;
 
     public bool $multiple = false;
 
@@ -29,24 +25,13 @@ class Picker extends Component
 
     public float $ratio = 1;
 
-    public string $directory = 'sn/media';
-
     public string $statePath = '';
 
     /** 初始选中（值对象数组，保持既有顺序） */
     public array $initialValues = [];
 
-    public string $tab = 'library';
-
-    public string $search = '';
-
-    public string $filterType = '';
-
     /** @var array<int, int> 选中的素材 id（顺序即保存顺序） */
     public array $selection = [];
-
-    /** @var array<int, mixed> */
-    public array $uploads = [];
 
     public function mount(): void
     {
@@ -70,57 +55,6 @@ class Picker extends Component
                 : [...$this->selection, $id];
         } else {
             $this->selection = ($this->selection === [$id]) ? [] : [$id];
-        }
-    }
-
-    /**
-     * 约束匹配：acceptedMimes 为空 = 不限；image/* 前缀匹配；其余精确匹配
-     */
-    public function allowsMime(string $mime): bool
-    {
-        if ($this->acceptedMimes === []) {
-            return true;
-        }
-
-        foreach ($this->acceptedMimes as $pattern) {
-            if (str_ends_with($pattern, '/*')) {
-                if (str_starts_with($mime, substr($pattern, 0, -1))) {
-                    return true;
-                }
-            } elseif ($mime === $pattern) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * 上传即入库并自动选中
-     */
-    public function updatedUploads(): void
-    {
-        $manager = app(MediaManager::class);
-        $count = 0;
-
-        foreach ($this->uploads as $file) {
-            try {
-                $media = $manager->upload($file, $this->directory);
-                $this->selection = $this->multiple ? [...$this->selection, $media->id] : [$media->id];
-                $count++;
-            } catch (\Throwable $e) {
-                Notification::make()
-                    ->title(__('sn-media::media.notifications.upload_failed', ['reason' => $e->getMessage()]))
-                    ->danger()
-                    ->send();
-            }
-        }
-
-        $this->uploads = [];
-        $this->resetPage();
-
-        if ($count > 0) {
-            Notification::make()->title(__('sn-media::media.notifications.uploaded', ['count' => $count]))->success()->send();
         }
     }
 
@@ -155,47 +89,41 @@ class Picker extends Component
         $this->dispatch('sn-media-selected', statePath: $this->statePath, multiple: $this->multiple, values: $values, urls: $urls);
     }
 
-    protected function mediaQuery()
+    /**
+     * 上传成功后自动选中（秒传复用的也选中）
+     */
+    protected function afterMediaUploaded($media): void
     {
-        $query = Utils::getMediaModel()::query();
+        $this->selection = $this->multiple
+            ? [...$this->selection, $media->id]
+            : [$media->id];
+    }
 
-        $tenant = rescue(fn () => filament()?->getTenant(), null, false);
-        if ($tenant) {
-            $query->where('team_id', $tenant->getKey());
+    /**
+     * 字段约束转 SQL（前缀模式 → like，精确 → 等值），分页计数随之正确
+     */
+    protected function mediaQueryWithAccept()
+    {
+        $query = $this->mediaQuery();
+
+        if ($this->acceptedMimes !== []) {
+            $query->where(function ($q) {
+                foreach ($this->acceptedMimes as $pattern) {
+                    if (str_ends_with($pattern, '/*')) {
+                        $q->orWhere('mime', 'like', substr($pattern, 0, -1) . '%');
+                    } else {
+                        $q->orWhere('mime', $pattern);
+                    }
+                }
+            });
         }
 
-        if ($type = MediaType::tryFrom($this->filterType)) {
-            $query->ofMediaType($type);
-        }
-
-        if ($this->search !== '') {
-            $query->search($this->search);
-        }
-
-        // 约束过滤放 SQL 侧有困难（前缀模式），取回后过滤 + 简单分页
         return $query;
     }
 
-    #[Computed]
     public function medias()
     {
-        $paginator = $this->mediaQuery()->orderByDesc('id')->paginate(18);
-
-        $filtered = $paginator->setCollection(
-            $paginator->getCollection()->filter(fn ($media) => $this->allowsMime((string) $media->mime))->values()
-        );
-
-        return $filtered;
-    }
-
-    public function updatedSearch(): void
-    {
-        $this->resetPage();
-    }
-
-    public function updatedFilterType(): void
-    {
-        $this->resetPage();
+        return $this->applySort($this->mediaQueryWithAccept())->paginate(18);
     }
 
     public function render(): View

@@ -7,7 +7,7 @@
 <div
     x-load
     x-load-src="{{ \Filament\Support\Facades\FilamentAsset::getAlpineComponentSrc('sn-media-picker-field', 'wsmallnews/media') }}"
-    x-data='snMediaPickerField(@js($props))'
+    x-data="snMediaPickerField({{ \Illuminate\Support\Js::from($props) }})"
     x-on:sn-media-selected.window="onSelected($event.detail)"
     x-on:sn-media-picker-closed.window="onClosed($event.detail)"
     {{ $attributes->merge(['class' => 'sn-media-picker-field']) }}>
@@ -67,12 +67,11 @@
 
         {{-- 选择弹窗（内容为 Picker Livewire 组件） --}}
         <div x-show="open" x-cloak class="fixed inset-0 z-50 grid place-items-center bg-gray-950/60 p-4" @click.self="open = false">
-            <div class="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+            <div class="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
                 <livewire:sn-media::components.picker
                     :multiple="$props['multiple']"
                     :accepted-mimes="$props['acceptedMimes']"
                     :ratio="$props['ratio']"
-                    :directory="$props['directory']"
                     :state-path="$props['statePath']"
                     :initial-values="$props['initialValues']"
                     wire:key="sn-media-picker-{{ md5($props['statePath']) }}"

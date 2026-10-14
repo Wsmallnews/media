@@ -30,6 +30,8 @@ class MediaValue
             $this->value = $this->model?->toValue() ?? ['path' => $value];
         } elseif (is_array($value) && ($value['path'] ?? null)) {
             $this->value = $value;
+            // 值对象缺的键（alt/disk 等）回落素材记录，按 path 补挂模型（请求级缓存）
+            $this->model = static::findByPathCached((string) $value['path']);
         }
     }
 
@@ -49,7 +51,8 @@ class MediaValue
     }
 
     /**
-     * 访问 URL；宽度非空且当前盘配置了变换模板时追加缩放参数
+     * 访问 URL；宽度非空且当前盘配置了变换模板时追加缩放参数。
+     * 可直链的盘（public 盘 / 云盘）返回直链；不可直链的盘（私有 local）走 file 路由流式输出。
      */
     public function url(?int $width = null): ?string
     {
@@ -59,6 +62,11 @@ class MediaValue
         }
 
         $disk = $this->model?->disk ?: Utils::getDisk();
+
+        if (! $this->diskServesDirectly($disk)) {
+            return route('sn-media.file', ['path' => $path]);
+        }
+
         $url = Storage::disk($disk)->url($path);
 
         $template = $this->resolveResizeTemplate($disk);
@@ -67,6 +75,26 @@ class MediaValue
         }
 
         return $url;
+    }
+
+    /**
+     * 盘是否可直链（public 盘或云盘 url()；私有 local 盘不可）
+     */
+    protected function diskServesDirectly(string $disk): bool
+    {
+        $config = config("filesystems.disks.{$disk}");
+
+        if (! is_array($config)) {
+            return true;
+        }
+
+        $driver = $config['driver'] ?? 'local';
+
+        if (in_array($driver, ['local', 'public'], true)) {
+            return $driver === 'public' || ($config['visibility'] ?? 'private') === 'public';
+        }
+
+        return true;
     }
 
     /**
@@ -91,7 +119,8 @@ class MediaValue
 
     public function __get(string $name): mixed
     {
-        return $this->value[$name] ?? null;
+        // 值对象优先；缺失键回落素材记录（alt/disk 等不在值对象契约里的字段）
+        return $this->value[$name] ?? $this->model?->{$name};
     }
 
     protected function resolveResizeTemplate(string $disk): ?string
