@@ -7,15 +7,14 @@ use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
-use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
-use Filament\Schemas\Components\Modal;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Js;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\WithFileUploads;
 use UnitEnum;
@@ -75,13 +74,6 @@ final class MediaPage extends Page implements HasActions
         return self::getConfigurationValue('navigationGroup') ?? __('sn-media::media.global_default.navigation_group');
     }
 
-    /**
-     * 页头动作：仅上传入口。
-     * 目录/素材操作 Action 全部以 `{name}Action()` 公共方法定义（Filament 解析约定），
-     * 由视图中的 ActionGroup / mountAction 按记录参数触发，不在页头注册。
-     *
-     * @return array<Action>
-     */
     protected function getHeaderActions(): array
     {
         return [
@@ -90,105 +82,6 @@ final class MediaPage extends Page implements HasActions
                 ->icon(Heroicon::OutlinedArrowUpTray)
                 ->alpineClickHandler("\$dispatch('sn-media-open-upload')"),
         ];
-    }
-
-    // ===== 目录 CRUD Actions（目录树行内触发） =====
-
-    public function snMediaDirectoryCreateAction(): Action
-    {
-        return Action::make('snMediaDirectoryCreate')
-            ->label(__('sn-media::media.directories.create'))
-            ->icon(Heroicon::OutlinedFolderPlus)
-            // mountAction 时按 arguments 重新解析 action，标题需闭包取参才能带上父目录名
-            ->modalHeading(function (array $arguments): string {
-                $parent = $arguments['parentId'] ?? null;
-
-                return $parent
-                    ? __('sn-media::media.directories.create_in', ['name' => MediaDirectory::find($parent)?->name ?? ''])
-                    : __('sn-media::media.directories.create');
-            })
-            ->modalWidth(Width::Medium)
-            ->schema([
-                TextInput::make('name')
-                    ->label(__('sn-media::media.directories.name'))
-                    ->maxLength(20)
-                    ->required(),
-            ])
-            ->action(function (array $arguments, array $data): void {
-                $this->directoryForm = $data;
-                $this->createDirectory($arguments['parentId'] ?? null);
-            });
-    }
-
-    public function snMediaDirectoryRenameAction(): Action
-    {
-        return Action::make('snMediaDirectoryRename')
-            ->label(__('sn-media::media.directories.rename_short'))
-            ->icon(Heroicon::OutlinedPencilSquare)
-            ->modalHeading(__('sn-media::media.directories.rename'))
-            ->modalWidth(Width::Medium)
-            ->fillForm(fn (array $arguments): array => ['name' => MediaDirectory::find($arguments['id'] ?? 0)?->name ?? ''])
-            ->schema([
-                TextInput::make('name')
-                    ->label(__('sn-media::media.directories.name'))
-                    ->maxLength(20)
-                    ->required(),
-            ])
-            ->action(function (array $arguments, array $data): void {
-                $this->directoryForm = $data;
-                $this->renameDirectory((int) ($arguments['id'] ?? 0));
-            });
-    }
-
-    public function snMediaDirectoryDeleteAction(): Action
-    {
-        return Action::make('snMediaDirectoryDelete')
-            ->label(__('sn-media::media.directories.delete_short'))
-            ->icon(Heroicon::OutlinedTrash)
-            ->color('danger')
-            ->requiresConfirmation()
-            ->modalHeading(__('sn-media::media.directories.delete'))
-            ->modalDescription(function (array $arguments): string {
-                $dir = MediaDirectory::find($arguments['id'] ?? 0);
-                if (! $dir) {
-                    return '';
-                }
-
-                $count = Utils::getMediaModel()::query()
-                    ->whereIn('directory_id', $dir->selfAndDescendantIds())
-                    ->count();
-
-                return $count > 0
-                    ? __('sn-media::media.directories.delete_files_hint', ['count' => $count])
-                    : __('sn-media::media.directories.delete_empty_hint');
-            })
-            ->action(function (array $arguments): void {
-                $this->deleteDirectory((int) ($arguments['id'] ?? 0));
-            });
-    }
-
-    /**
-     * 目录树行 ⋯ 下拉菜单（ActionGroup：创建子目录 / 重命名 / 删除）。
-     * 菜单项用短名（体现子目录语义），modal 标题保持完整描述。
-     *
-     * @param  array{id: int, name: string, depth: int, count: int}  $dir
-     */
-    public function directoryMenuActions(array $dir): ActionGroup
-    {
-        return ActionGroup::make([
-            ($this->snMediaDirectoryCreateAction)(['parentId' => $dir['id']])
-                ->label(__('sn-media::media.directories.create_child'))
-                ->visible(fn (): bool => $dir['depth'] < MediaDirectory::MAX_DEPTH - 1),
-            ($this->snMediaDirectoryRenameAction)(['id' => $dir['id']]),
-            ($this->snMediaDirectoryDeleteAction)(['id' => $dir['id']]),
-        ])
-            ->iconButton()
-            ->icon(Heroicon::OutlinedEllipsisVertical)
-            ->color('gray')
-            ->tooltip(__('sn-media::media.list.more_actions'))
-            // 面板传送到 body：目录树容器 overflow 会裁剪内嵌面板；右对齐触发器向左下展开
-            ->dropdownTeleport()
-            ->dropdownPlacement('bottom-end');
     }
 
     // ===== 素材操作 Actions（瓦片/列表行 ⋯ 下拉菜单项，mountAction + {id/ids} 触发） =====
@@ -311,101 +204,27 @@ final class MediaPage extends Page implements HasActions
     }
 
     /**
-     * 目录筛选（组合语义：不清空类型）
+     * 目录筛选（组合语义：不清空类型）。
+     * 同时接收 MediaDirectories 树组件的选择事件（payload 键 recordId 与参数名一致）；
+     * 面包屑与窄屏下拉仍直接调用。
      */
-    public function filterByDir(?int $dir = null): void
+    #[On('sn-filament-nestedset-leaf-click')]
+    #[On('sn-filament-nestedset-node-click')]
+    public function filterByDir(?int $recordId = null): void
     {
-        $this->setLibraryDir($dir);
-    }
-
-    // ============ 目录 CRUD ============
-
-    /**
-     * 新建目录（可选父级；层级 ≤ 3）
-     */
-    public function createDirectory(?int $parentId = null): void
-    {
-        $name = trim($this->directoryForm['name'] ?? '');
-
-        if ($name === '' || mb_strlen($name) > 20) {
-            Notification::make()->title(__('sn-media::media.directories.name_invalid'))->danger()->send();
-
-            return;
-        }
-
-        try {
-            $parent = $parentId ? MediaDirectory::find($parentId) : null;
-            MediaDirectory::createChild($name, $parent, $this->resolveTeamId());
-        } catch (\Throwable $e) {
-            Notification::make()->title(__('sn-media::media.directories.depth_limit', ['max' => MediaDirectory::MAX_DEPTH]))->danger()->send();
-
-            return;
-        }
-
-        $this->directoryForm = [];
-        unset($this->libraryDirectories);
-        Notification::make()
-            ->title(__('sn-media::media.directories.created'))
-            ->body(__('sn-media::media.directories.created_hint'))
-            ->success()
-            ->send();
+        $this->setLibraryDir($recordId);
     }
 
     /**
-     * 重命名目录（纯逻辑，不影响文件路径）
+     * 目录树 CRUD（MediaDirectories 组件内完成）后刷新本页：
+     * 空监听触发重渲染，让面包屑/计数/列表跟随树变更；
+     * 删除当前选中目录时树组件已派发 recordId = null 回「全部」。
      */
-    public function renameDirectory(int $dirId): void
+    #[On('sn-filament-nestedset-updated')]
+    public function refreshLibrary(): void
     {
-        $name = trim($this->directoryForm['name'] ?? '');
-        $dir = MediaDirectory::find($dirId);
-
-        if (! $dir || $name === '' || mb_strlen($name) > 20) {
-            Notification::make()->title(__('sn-media::media.directories.name_invalid'))->danger()->send();
-
-            return;
-        }
-
-        $dir->update(['name' => $name]);
-        $this->directoryForm = [];
-        unset($this->libraryDirectories);
-        Notification::make()
-            ->title(__('sn-media::media.directories.renamed'))
-            ->body(__('sn-media::media.directories.renamed_hint'))
-            ->success()
-            ->send();
+        //
     }
-
-    /**
-     * 删除目录（非空 → 文件回落未归类）
-     */
-    public function deleteDirectory(int $dirId): void
-    {
-        $dir = MediaDirectory::find($dirId);
-
-        if (! $dir) {
-            return;
-        }
-
-        $fileCount = Utils::getMediaModel()::query()
-            ->whereIn('directory_id', $dir->selfAndDescendantIds())
-            ->count();
-
-        $dir->deleteWithDescendants();
-
-        if ($this->libraryDir === $dirId) {
-            $this->libraryDir = null;
-        }
-
-        unset($this->libraryDirectories, $this->medias);
-        Notification::make()
-            ->title(__('sn-media::media.directories.deleted'))
-            ->body($fileCount > 0 ? __('sn-media::media.directories.deleted_files_fallback', ['count' => $fileCount]) : '')
-            ->success()
-            ->send();
-    }
-
-    /** @var array<string, mixed> 目录表单（新建/重命名共用） */
-    public array $directoryForm = [];
 
     // ============ 文件操作 ============
 

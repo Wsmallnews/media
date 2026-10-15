@@ -19,8 +19,8 @@
 
     {{-- 工具栏：面包屑 + 搜索 + 上传（直接拉起文件选择器） --}}
     <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-        {{-- 面包屑：目录 › 类型（组合筛选可视化，与管理页一致） --}}
-        <nav class="flex min-w-0 items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+        {{-- 面包屑：完整路径（根→当前，每级可点击）› 类型——与管理页一致 --}}
+        <nav class="flex min-w-0 flex-wrap items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
             @if ($libraryDir === null)
                 <span class="font-medium text-gray-900 dark:text-gray-100">{{ __('sn-media::media.tree.all') }}</span>
             @else
@@ -29,9 +29,14 @@
                 @if ($libraryDir === 0)
                     <span class="font-medium text-gray-900 dark:text-gray-100">{{ __('sn-media::media.tree.uncategorized') }}</span>
                 @else
-                    @foreach ($this->libraryDirectories as $treeDir)
-                        @if ($treeDir['id'] === $libraryDir)
-                            <span class="max-w-40 truncate font-medium text-gray-900 dark:text-gray-100">{{ $treeDir['name'] }}</span>
+                    @foreach ($this->directoryBreadcrumb() as $crumb)
+                        @if (! $loop->first)
+                            <x-filament::icon :icon="Heroicon::OutlinedChevronRight" class="size-3.5" />
+                        @endif
+                        @if ($crumb['id'] === $libraryDir)
+                            <span class="max-w-40 truncate font-medium text-gray-900 dark:text-gray-100">{{ $crumb['name'] }}</span>
+                        @else
+                            <button wire:click="setLibraryDir({{ $crumb['id'] }})" class="max-w-32 truncate hover:text-primary-600">{{ $crumb['name'] }}</button>
                         @endif
                     @endforeach
                 @endif
@@ -76,26 +81,21 @@
 
     {{-- body：左目录树 + 右内容 --}}
     <div class="flex min-h-0 flex-1">
-        <nav class="hidden w-44 shrink-0 overflow-y-auto border-r border-gray-200 p-2 text-xs sm:block dark:border-gray-700">
-            <p class="px-2 py-1 text-[10px] font-semibold tracking-wide text-gray-400">{{ __('sn-media::media.tree.directories') }}</p>
+        <aside class="hidden w-56 shrink-0 overflow-y-auto border-r border-gray-200 p-2 text-sm sm:block dark:border-gray-700 [scrollbar-gutter:stable]">
+            <p class="mb-1 px-1 text-xs font-semibold tracking-wide text-gray-400">{{ __('sn-media::media.tree.directories') }}</p>
 
+            {{-- 哨兵行：全部 / 未归类 --}}
             <button wire:click="setLibraryDir(null)"
-                class="block w-full rounded-md px-2 py-1.5 text-left {{ $libraryDir === null ? 'bg-primary-50 font-medium text-primary-700 dark:bg-primary-500/10 dark:text-primary-300' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800' }}">
-                {{ __('sn-media::media.tree.all') }}
+                class="flex w-full items-center justify-between rounded-md px-2 py-1.5 {{ $libraryDir === null ? 'bg-primary-50 font-medium text-primary-500 dark:bg-primary-500/10 dark:text-primary-600' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5' }}">
+                <span>{{ __('sn-media::media.tree.all') }}</span>
             </button>
             <button wire:click="setLibraryDir(0)"
-                class="block w-full rounded-md px-2 py-1.5 text-left {{ $libraryDir === 0 ? 'bg-primary-50 font-medium text-primary-700 dark:bg-primary-500/10 dark:text-primary-300' : 'text-gray-400 italic hover:bg-gray-50 dark:text-gray-500 dark:hover:bg-gray-800' }}">
-                {{ __('sn-media::media.tree.uncategorized') }}
+                class="flex w-full items-center justify-between rounded-md px-2 py-1.5 {{ $libraryDir === 0 ? 'bg-primary-50 font-medium text-primary-500 dark:bg-primary-500/10 dark:text-primary-600' : 'text-gray-400 italic hover:bg-gray-100 dark:text-gray-500 dark:hover:bg-white/5' }}">
+                <span>{{ __('sn-media::media.tree.uncategorized') }}</span>
             </button>
-            @foreach ($this->libraryDirectories as $treeDir)
-                <button wire:click="setLibraryDir({{ $treeDir['id'] }})"
-                    class="flex w-full items-center justify-between rounded-md px-2 py-1.5 {{ $libraryDir === $treeDir['id'] ? 'bg-primary-50 font-medium text-primary-700 dark:bg-primary-500/10 dark:text-primary-300' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800' }}"
-                    style="padding-left: {{ 8 + $treeDir['depth'] * 10 }}px">
-                    <span class="truncate">{{ $treeDir['name'] }}</span>
-                    <span class="text-[10px] text-gray-400">{{ $treeDir['count'] }}</span>
-                </button>
-            @endforeach
-        </nav>
+
+            <livewire:sn-media::components.media-directories :active-id="$libraryDir" />
+        </aside>
 
         <div class="flex-1 overflow-y-auto p-3">
             {{-- 类型 chips + 窄屏目录下拉 --}}

@@ -246,6 +246,33 @@ trait InteractsWithMediaLibrary
 
     // ============ 通用 ============
 
+    /**
+     * Directory breadcrumb: ancestor chain from root to the selected directory
+     * (each ancestor is clickable in the breadcrumb to switch directory).
+     *
+     * @return array<int, array{id: int, name: string}>
+     */
+    #[Computed]
+    public function directoryBreadcrumb(): array
+    {
+        if (is_null($this->libraryDir) || $this->libraryDir <= 0) {
+            return [];
+        }
+
+        $dir = MediaDirectory::find($this->libraryDir);
+
+        if (! $dir) {
+            return [];
+        }
+
+        return $dir->ancestors()
+            ->orderBy('_lft')
+            ->get()
+            ->map(fn (MediaDirectory $ancestor) => ['id' => $ancestor->id, 'name' => $ancestor->name])
+            ->push(['id' => $dir->id, 'name' => $dir->name])
+            ->all();
+    }
+
     protected function resolveTeamId(): ?int
     {
         $tenant = rescue(fn () => filament()?->getTenant(), null, false);

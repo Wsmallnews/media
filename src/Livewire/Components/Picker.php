@@ -3,6 +3,7 @@
 namespace Wsmallnews\Media\Livewire\Components;
 
 use Illuminate\Contracts\View\View;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Wsmallnews\Media\Livewire\Concerns\InteractsWithMediaLibrary;
@@ -17,6 +18,25 @@ class Picker extends Component
 {
     use InteractsWithMediaLibrary;
     use WithFileUploads;
+
+    /**
+     * MediaDirectories 树组件的选择事件（叶子/非叶子统一处理：切换目录筛选）
+     */
+    #[On('sn-filament-nestedset-leaf-click')]
+    #[On('sn-filament-nestedset-node-click')]
+    public function onTreeClick(int $recordId): void
+    {
+        $this->setLibraryDir($recordId);
+    }
+
+    /**
+     * 目录树 CRUD 后刷新本页（空监听触发重渲染，让面包屑/列表跟随树变更）
+     */
+    #[On('sn-filament-nestedset-updated')]
+    public function refreshFromTree(): void
+    {
+        //
+    }
 
     public bool $multiple = false;
 
