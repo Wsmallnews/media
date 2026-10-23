@@ -33,7 +33,7 @@ enum MediaType: string implements HasColor, HasIcon, HasLabel
     case File = 'file';
 
     /**
-     * 从 MIME（辅以扩展名兜底）判定媒体类型。
+     * Resolve the type from the MIME, falling back to the extension.
      */
     public static function fromMime(?string $mime, ?string $ext = null): self
     {
@@ -54,7 +54,7 @@ enum MediaType: string implements HasColor, HasIcon, HasLabel
     }
 
     /**
-     * 该类型作为列表筛选项时对应的状态（File 为兜底类型，不参与过滤）。
+     * Whether the type is a list filter; File is the fallback type and never filters.
      */
     public function isFilterable(): bool
     {
@@ -62,7 +62,7 @@ enum MediaType: string implements HasColor, HasIcon, HasLabel
     }
 
     /**
-     * 非图片瓦片短标签（PDF/DOC 等固定字母标，无需翻译）
+     * Short tile label (PDF/DOC/...), no translation needed.
      */
     public function getTileLabel(): string
     {
@@ -80,7 +80,7 @@ enum MediaType: string implements HasColor, HasIcon, HasLabel
     }
 
     /**
-     * 类型瓦片 SVG URL（静态文件发布到 public/vendor，不依赖 Tailwind 动态类编译）
+     * Type tile SVG URL (static files in public/vendor, no Tailwind compile needed).
      */
     public function getTileUrl(): string
     {

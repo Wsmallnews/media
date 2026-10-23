@@ -9,8 +9,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Wsmallnews\Media\Support\Utils;
 
 /**
- * 下载：以原始文件名（name 列）返回。
- * 本地盘直接流式输出；云盘 temporaryUrl + ResponseContentDisposition。
+ * Download with the original filename: local disks stream the file, cloud disks redirect to
+ * a temporary URL with Content-Disposition.
  */
 class MediaDownloadController extends Controller
 {

@@ -7,10 +7,8 @@ use Illuminate\Support\Facades\URL;
 use Wsmallnews\Media\Models\Media;
 
 /**
- * 附件值 presenter：统一渲染入口。
- *
- * 接受三种形态：值对象数组（字段保存值）、相对路径字符串（老字段 / 快照）、Media 模型。
- * string 形态按 path 唯一索引反查素材表补齐元数据，反查不到则最小信息降级。
+ * Value presenter for attachments: accepts a value-object array, a relative path or a Media model.
+ * A path string is looked up in the media table; unknown paths degrade to path-only data.
  */
 class MediaValue
 {
@@ -49,8 +47,8 @@ class MediaValue
     }
 
     /**
-     * 访问 URL；宽度非空且当前盘配置了变换模板时追加缩放参数。
-     * 可直链的盘（public 盘 / 云盘）返回直链；不可直链的盘（私有 local）走 file 路由流式输出。
+     * Preview URL; appends the resize parameter when the disk defines one. Direct-link disks
+     * return their URL, private disks go through the signed file route.
      */
     public function url(?int $width = null): ?string
     {
@@ -87,7 +85,7 @@ class MediaValue
     }
 
     /**
-     * 盘是否可直链（public 盘或云盘 url()；私有 local 盘不可）
+     * Whether the disk can be linked directly (public or cloud); a private local disk cannot.
      */
     protected function diskServesDirectly(string $disk): bool
     {
@@ -101,7 +99,7 @@ class MediaValue
     }
 
     /**
-     * 下载 URL（强制原始文件名）：有素材记录走路由，裸路径降级直链
+     * Download URL with the original filename: the route for records, a direct URL for bare paths.
      */
     public function downloadUrl(): ?string
     {
@@ -129,7 +127,7 @@ class MediaValue
 
     public function __get(string $name): mixed
     {
-        // 值对象优先；缺失键回落素材记录（alt/disk 等不在值对象契约里的字段）
+        // Value object first; fall back to the record for keys it does not carry (alt, disk).
         return $this->value[$name] ?? $this->model?->{$name};
     }
 
@@ -139,7 +137,7 @@ class MediaValue
         $disks = (array) ($transforms['disks'] ?? []);
         $providers = (array) ($transforms['providers'] ?? []);
 
-        // 盘名映射优先（值为 provider 键），其次按盘 driver 推断
+        // Explicit disk mapping first (value is a provider key), then infer from the disk driver.
         $providerKey = $disks[$disk] ?? config("filesystems.disks.{$disk}.driver");
         $provider = is_string($providerKey) ? ($providers[$providerKey] ?? null) : null;
 

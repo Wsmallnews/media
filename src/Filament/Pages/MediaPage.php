@@ -85,7 +85,7 @@ final class MediaPage extends Page implements HasActions
         ];
     }
 
-    // ===== 素材操作 Actions（瓦片/列表行 ⋯ 下拉菜单项，mountAction + {id/ids} 触发） =====
+    // Row actions (tile / list "..." menu, triggered via mountAction with {id/ids})
 
     public function snMediaPreviewAction(): Action
     {
@@ -131,7 +131,7 @@ final class MediaPage extends Page implements HasActions
                 $ids = $arguments['ids'] ?? [$arguments['id'] ?? null];
                 $this->move(array_filter($ids), ($data['directory_id'] ?? '') === '' ? null : (int) $data['directory_id']);
 
-                // 预览弹层中的目录列已过期，统一关闭
+                // The preview modal still shows the old directory: close it.
                 $this->clearPreview();
             });
     }
@@ -151,7 +151,7 @@ final class MediaPage extends Page implements HasActions
     }
 
     /**
-     * 素材行 ⋯ 下拉菜单（ActionGroup：预览 / 复制路径 / 下载 / 移动 / 删除）
+     * Row "..." menu: preview, copy path, download, move, delete.
      */
     public function mediaMenuActions(Media $media): ActionGroup
     {
@@ -161,8 +161,8 @@ final class MediaPage extends Page implements HasActions
             Action::make('snMediaDownload')
                 ->label(__('sn-media::media.list.download'))
                 ->icon(Heroicon::OutlinedArrowDownTray)
-                // 面板启用 SPA 后带 href 的动作会被 wire:navigate 拦截成 fetch（二进制内容直接渲染成文本），
-                // 这里改为 JS 导航：attachment 响应会原地触发浏览器下载，不离开当前页
+                // With SPA mode a plain href is intercepted by wire:navigate as a fetch and the
+                // binary response would be rendered as text; JS navigation keeps it a download.
                 ->alpineClickHandler('window.location.href = ' . Js::from(MediaValue::make($media)->downloadUrl())),
             ($this->snMediaMoveAction)(['id' => $media->id]),
             ($this->snMediaDeleteAction)(['id' => $media->id]),
@@ -171,15 +171,13 @@ final class MediaPage extends Page implements HasActions
             ->icon(Heroicon::OutlinedEllipsisVertical)
             ->color('gray')
             ->tooltip(__('sn-media::media.list.more_actions'))
-            // 不要用 ->dropdownTeleport()：Filament 的 .teleport 修饰符只是把 x-float 的
-            // strategy 切成 fixed，并不会把面板真的移出 DOM。媒体页大量用 @container
-            // （container-type 会创建 fixed 的 containing block），fixed 坐标会被容器带偏，
-            // 菜单会跑到页面左上角、完全不跟 ⋯ 按钮。保持 absolute 策略才跟得住。
+            // Do not use ->dropdownTeleport(): it only switches x-float to fixed, while the
+            // @container wrappers here create a fixed containing block and drag the panel away.
             ->dropdownPlacement('bottom-end');
     }
 
     /**
-     * 类型筛选（组合语义：不清空目录）
+     * Type filter; combines with the directory filter.
      */
     public function filterByType(string $type = ''): void
     {
@@ -187,9 +185,8 @@ final class MediaPage extends Page implements HasActions
     }
 
     /**
-     * 目录筛选（组合语义：不清空类型）。
-     * 同时接收 MediaDirectories 树组件的选择事件（payload 键 recordId 与参数名一致）；
-     * 面包屑与窄屏下拉仍直接调用。
+     * Directory filter; combines with the type filter. Also receives the tree click events
+     * (the payload key matches the parameter name).
      */
     #[On('sn-filament-nestedset-leaf-click')]
     #[On('sn-filament-nestedset-node-click')]
@@ -199,20 +196,17 @@ final class MediaPage extends Page implements HasActions
     }
 
     /**
-     * 目录树 CRUD（MediaDirectories 组件内完成）后刷新本页：
-     * 空监听触发重渲染，让面包屑/计数/列表跟随树变更；
-     * 删除当前选中目录时树组件已派发 recordId = null 回「全部」。
+     * Re-render after tree CRUD so breadcrumbs, counts and the list follow.
      */
     #[On('sn-filament-nestedset-updated')]
     public function refreshLibrary(): void
     {
-        //
     }
 
-    // ============ 文件操作 ============
+    // File operations
 
     /**
-     * 批量移动到目录（纯逻辑归属，path 不变）
+     * Move to a directory (logical ownership only; path is unchanged).
      *
      * @param  array<int, int>  $ids
      */
@@ -233,7 +227,7 @@ final class MediaPage extends Page implements HasActions
             ->update(['directory_id' => $targetDirId]);
         unset($this->medias);
 
-        // 搬目录改了各目录的累计计数，左树（独立组件）需要自己重新取数
+        // Directory counts changed; the tree is a separate component and refetches on its own.
         $this->dispatch('refresh-page');
         Notification::make()
             ->title(__('sn-media::media.notifications.moved', ['count' => count($ids)]))
@@ -242,7 +236,7 @@ final class MediaPage extends Page implements HasActions
     }
 
     /**
-     * 删除仅移除素材记录，物理文件保留
+     * Remove the records only; physical files are kept.
      *
      * @param  array<int, int>  $ids
      */
@@ -263,7 +257,7 @@ final class MediaPage extends Page implements HasActions
         }
         unset($this->medias);
 
-        // 删除同样影响各目录的累计计数
+        // Deleting also changes the per-directory counts.
         $this->dispatch('refresh-page');
 
         Notification::make()
@@ -273,7 +267,7 @@ final class MediaPage extends Page implements HasActions
             ->send();
     }
 
-    // ============ 预览 ============
+    // Preview
 
     public function openPreview(int $id): void
     {
@@ -327,7 +321,7 @@ final class MediaPage extends Page implements HasActions
             : null;
     }
 
-    // ============ 列表 ============
+    // Listing
 
     #[Computed]
     public function medias()

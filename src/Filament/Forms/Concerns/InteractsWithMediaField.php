@@ -8,60 +8,53 @@ use Illuminate\Contracts\Support\Htmlable;
 use Wsmallnews\Media\Support\MediaValue;
 
 /**
- * MediaPicker / FilePicker 的共同部分：值契约、触发器外观、状态归一与 props 组装。
- *
- * 两者的差别只有「值从哪来」：
- * - MediaPicker 从素材库弹窗选（追加 fieldId / modalId / viewMode / sortBy 等弹窗选项）；
- * - FilePicker 直接拉系统文件选择器上传（追加 disk / uploadUrl / csrfToken 等直传选项）。
- * 除此之外——值对象契约、初始状态归一、预览框尺寸、多值排序、上限、列表/网格——完全一致，
- * 所以只在这里写一遍，避免两个字段的交互慢慢走散。
+ * Shared surface of MediaPicker and FilePicker: value contract, trigger appearance, state
+ * normalisation, Alpine props. The only difference is where the value comes from.
  */
 trait InteractsWithMediaField
 {
     protected bool | Closure $isMultiple = false;
 
-    /** 宽 / 高（与 CSS aspect-ratio 同口径） */
+    /** Width / height ratio (same semantics as CSS aspect-ratio) */
     protected int | float | Closure $ratio = 1;
 
-    /** @var array<string> | Closure mime 模式（image/* 前缀或精确 mime），空 = 不限 */
+    /** @var array<string> | Closure Mime patterns (image/* or an exact mime); empty = any */
     protected array | Closure $acceptedMimes = [];
 
     protected string | Closure | null $directory = null;
 
-    /** 只把 path 写进字段状态（值对象仅用于展示与预览） */
+    /** Store only the path in field state (the value object is still used for display) */
     protected bool | Closure $storesPath = false;
 
-    /** 触发器宽度（px）：空触发器、单值预览、多值每格共用 */
+    /** Trigger width in px: empty trigger, single preview and each grid cell share it */
     protected int | Closure $triggerWidth = 144;
 
-    /** 触发器高度（px）：null = 按 ratio 由宽度换算 */
+    /** Trigger height in px: null = derived from width via ratio */
     protected int | Closure | null $triggerHeight = null;
 
-    /** 单值预览是否显示右侧文件信息（名称/尺寸/路径/替换按钮） */
+    /** Show file info next to the single preview (name / dimensions / path / replace) */
     protected bool | Closure $showsPreviewInfo = true;
 
-    /** 图片点击放大预览（single / grid / list 通用） */
+    /** Click-to-zoom preview (single / grid / list) */
     protected bool | Closure $hasImagePreview = true;
 
     /**
-     * 触发器图标（null = 默认加号）。
+     * Trigger icon (null = default plus sign).
      *
-     * 只服务服务端渲染，**不进 mediaFieldProps()**：那份数组要 Js::from 下发到 Alpine，
-     * Heroicon 是 enum、Htmlable 根本不可序列化。
+     * Server-rendered only — **never** put it into mediaFieldProps(): icons render through
+     * <x-filament::icon>, and Htmlable objects cannot be serialised by Js::from().
      */
     protected Heroicon | string | Htmlable | Closure | null $triggerIcon = null;
 
     /**
-     * 触发器文案（null = 只显示图标；同时作为 aria-label 的兜底）。
-     *
-     * 同样只服务服务端渲染，不进 mediaFieldProps()。
+     * Trigger label (null = icon only; also the aria-label fallback). Server-rendered only.
      */
     protected string | Closure | null $triggerLabel = null;
 
-    /** 多值项目排布：grid（默认，缩略图网格）| list（文件列表：左名称右操作） */
+    /** Multi-value layout: grid (default) | list */
     protected string | Closure $itemsLayout = 'grid';
 
-    /** 多值上限（null = 不限）；到达上限后「+」触发器禁用 */
+    /** Max items (null = unlimited); the "+" trigger is disabled once reached */
     protected int | Closure | null $maxCount = null;
 
     public function multiple(bool | Closure $condition = true): static
@@ -72,10 +65,8 @@ trait InteractsWithMediaField
     }
 
     /**
-     * 宽高比 = 宽 / 高（与 CSS aspect-ratio 同口径）。
-     *
-     * 常见写法：4:3 传 `ratio(4 / 3)`（= 1.3333），16:9 传 `ratio(16 / 9)`，正方形 `ratio(1)`。
-     * 只在 triggerSize() 没传高度时用于换算触发器高度；不规则尺寸直接 triggerSize(160, 120) 更直观。
+     * Aspect ratio = width / height. Only used to derive the trigger height when
+     * triggerSize() is given a width; for irregular sizes call triggerSize(160, 120).
      */
     public function ratio(int | float | Closure $ratio): static
     {
@@ -95,7 +86,7 @@ trait InteractsWithMediaField
     }
 
     /**
-     * 仅图片（常用语法糖）
+     * Images only (sugar)
      */
     public function acceptImages(): static
     {
@@ -110,9 +101,8 @@ trait InteractsWithMediaField
     }
 
     /**
-     * 只把 path 存进字段（默认存完整值对象）。
-     *
-     * 用途：目标列是 string 的字段、或内联轻量图——存储轨道保持「路径直存」不变。
+     * Store only the path (default stores the whole value object).
+     * For string columns or lightweight inline images.
      */
     public function storePath(bool | Closure $condition = true): static
     {
@@ -122,10 +112,8 @@ trait InteractsWithMediaField
     }
 
     /**
-     * 触发器尺寸（px）：空触发器、单值预览、多值每格共用。
-     *
-     * - 只传宽度 → 高度按 ratio 换算（ratio 1 = 正方形）；
-     * - 不规则图传两个值，如 triggerSize(160, 90)。
+     * Trigger size in px, shared by the empty trigger, the single preview and each grid cell.
+     * Width only => height derived from ratio. Irregular shapes: triggerSize(160, 90).
      */
     public function triggerSize(int | Closure $width, int | Closure | null $height = null): static
     {
@@ -136,9 +124,8 @@ trait InteractsWithMediaField
     }
 
     /**
-     * 单值预览是否显示文件信息（名称 / 尺寸 / 路径 / 替换按钮）。
-     *
-     * false：只留缩略图，操作收进 hover 遮罩的移除按钮——替换 = 移除后重新点空触发器。
+     * Show file info next to the single preview (name / dimensions / path / replace).
+     * false keeps the thumbnail only; replace = remove, then click the empty trigger.
      */
     public function previewInfo(bool | Closure $condition = true): static
     {
@@ -148,9 +135,8 @@ trait InteractsWithMediaField
     }
 
     /**
-     * 多值上限：到达后「+」触发器禁用。
-     *
-     * 不传 / 传 null / 传 0 都表示**不限**（0 张上限没有实际意义，最小张数交给 required）。
+     * Max item count; the "+" trigger is disabled once reached.
+     * null / omitted / 0 all mean unlimited (use `required` for a minimum).
      */
     public function maxCount(int | Closure | null $count): static
     {
@@ -160,9 +146,8 @@ trait InteractsWithMediaField
     }
 
     /**
-     * 多值项目排布：'grid'（默认，缩略图网格）| 'list'（文件列表：左名称、右操作，窄屏满宽）。
-     *
-     * 非图片的多文件场景用 list 更好认（文件名比扩展名色块信息量大）。
+     * Multi-value layout: 'grid' (thumbnails) | 'list' (name left, actions right).
+     * Prefer list for non-image files — filenames carry more than extension blocks.
      */
     public function itemsLayout(string | Closure $layout): static
     {
@@ -172,7 +157,7 @@ trait InteractsWithMediaField
     }
 
     /**
-     * 是否允许点图片放大预览（默认开；预览层独立渲染，不依赖任何弹窗）。
+     * Click-to-zoom images (default on; the zoom layer renders independently of modals).
      */
     public function imagePreview(bool | Closure $condition = true): static
     {
@@ -182,7 +167,7 @@ trait InteractsWithMediaField
     }
 
     /**
-     * 触发器图标（null = 默认加号）。传入即覆盖，三处触发器（单值 / 网格瓦片 / 列表行）同步生效。
+     * Trigger icon (null = default plus). Overrides all three trigger shapes at once.
      */
     public function triggerIcon(Heroicon | string | Htmlable | Closure | null $icon): static
     {
@@ -192,10 +177,8 @@ trait InteractsWithMediaField
     }
 
     /**
-     * 触发器文案（null = 只显示图标）。
-     *
-     * 不设默认值：MediaPicker 与 FilePicker 在表单上不该靠文案区分用途，需要的话由调用处自己写。
-     * 横向放不下会自动换行（icon 在上、文案在下），仍超宽则省略号截断。
+     * Trigger label (null = icon only). No default: the two fields should not be told apart
+     * by copy. Wraps under the icon when narrow, truncates when still too wide.
      */
     public function triggerLabel(string | Closure | null $label): static
     {
@@ -263,7 +246,7 @@ trait InteractsWithMediaField
     {
         $count = $this->evaluate($this->maxCount);
 
-        // 0 与 null 同义：都表示「不限」（否则调用处写 0 会误以为一张都不能选）
+        // 0 and null both mean unlimited (0 would otherwise read as "none allowed").
         return ($count === null || (int) $count <= 0) ? null : (int) $count;
     }
 
@@ -290,10 +273,9 @@ trait InteractsWithMediaField
     }
 
     /**
-     * 初始状态归一（afterStateHydrated 用）：丢掉无效项，只留契约内的形状。
-     *
-     * storePath 模式的值是路径字符串，其余是值对象——两种契约都能吃，是因为
-     * 存储契约由字段自己声明，视图侧永远只按值对象消费（见 resolveStateEntries）。
+     * Normalise hydrated state (afterStateHydrated): drop invalid items, keep contract shapes.
+     * storePath mode holds path strings, otherwise value objects — the storage contract is
+     * declared by the field itself, views always consume value objects (resolveStateEntries).
      */
     protected function normalizeHydratedState(mixed $state): mixed
     {
@@ -311,10 +293,10 @@ trait InteractsWithMediaField
     }
 
     /**
-     * 字段状态 → 值对象 + 预览地址（单值/多值、值对象/路径字符串都能吃）。
+     * Field state => value objects + preview URLs (single/multiple, object/path string).
      *
-     * 路径字符串**必须**经 MediaValue 反查素材表补齐 mime / 尺寸：前端靠 mime 判断
-     * 是渲染图片还是扩展名标签，只给 path 的话预览会退化成「PNG」文字块。
+     * Path strings **must** be resolved through MediaValue: the frontend relies on mime to
+     * choose between an image and an extension block, so a bare path degrades to "PNG" text.
      *
      * @return array<int, array{value: array<string, mixed>, url: ?string}>
      */
@@ -342,17 +324,16 @@ trait InteractsWithMediaField
     }
 
     /**
-     * 两个字段共用的 Alpine props（值 + 外观）。
-     *
-     * 弹窗选项（MediaPicker）与直传选项（FilePicker）各自追加，不混进这里——
-     * 否则每个字段都会往下发一批自己永远不用的键。
+     * Alpine props shared by both fields (values + appearance). Modal-only options
+     * (MediaPicker) and direct-upload options (FilePicker) are appended by each field,
+     * so neither ships keys it never reads.
      */
     protected function mediaFieldProps(): array
     {
         $values = [];
         $urls = [];
 
-        // 一次反查同时产出值对象与预览地址，避免同一条 path 查两次素材表
+        // One lookup yields both the value object and the preview URL (no double query).
         foreach ($this->resolveStateEntries($this->getState()) as $entry) {
             $path = $entry['value']['path'] ?? null;
 

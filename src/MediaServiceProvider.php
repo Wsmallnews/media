@@ -37,29 +37,29 @@ class MediaServiceProvider extends PackageServiceProvider
 
     public function packageRegistered(): void
     {
-        // 模块身份登记（ModuleRegistry 单一事实源）
+        // Module identity (ModuleRegistry is the single source of truth).
         ModuleRegistry::register(new Module(
             id: static::$name,
             namespace: 'Wsmallnews\\Media',
             plugin: MediaPlugin::class,
         ));
 
-        // 上传管道（容器单例；不设 Facade，避免与 spatie Media 概念歧义）
+        // Upload pipeline; no facade, to avoid confusion with spatie/laravel-medialibrary.
         $this->app->singleton(MediaManager::class);
 
-        // 库级计数的请求内缓存：一个表单里的多个 picker 共享一次查询
+        // Per-request library counts, shared by every picker in a form.
         $this->app->scoped(LibraryCounts::class);
     }
 
     public function packageBooted(): void
     {
-        // 对齐 Livewire 临时上传上限与 sn-media.max_size（Livewire 默认 max:12288/12MB，
-        // 低于 sn-media 上限时大文件会在临时上传阶段被静默拦截；仅用户未自定义 rules 时生效）
+        // Align Livewire's temporary upload limit with sn-media.max_size; the default 12MB
+        // silently rejects larger files. Only applies when the app has not set its own rules.
         if (config('livewire.temporary_file_upload.rules') === null && ($maxSize = Utils::getConfig('max_size'))) {
             config(['livewire.temporary_file_upload.rules' => ['file', 'max:' . (int) $maxSize]]);
         }
 
-        // 注册模型别名
+        // Morph map.
         Relation::enforceMorphMap([
             'sn_media' => Utils::getMediaModel(),
         ]);
@@ -86,19 +86,13 @@ class MediaServiceProvider extends PackageServiceProvider
                 ], 'media-stubs');
             }
 
-            // 类型瓦片 SVG 发布到 public（Tailwind 动态类不靠谱，静态图最稳）
+            // Type tile SVGs (static files beat dynamic Tailwind classes).
             foreach (app(Filesystem::class)->files(__DIR__ . '/../resources/images/tiles/') as $file) {
                 $this->publishes([
                     $file->getRealPath() => public_path("vendor/wsmallnews/media/images/tiles/{$file->getFilename()}"),
                 ], 'media-assets');
             }
         }
-
-        // 注册 livewire 命名空间（自动发现 src/Livewire/ 下的组件）
-        Livewire::addNamespace(
-            namespace: 'sn-media',
-            classNamespace: 'Wsmallnews\\Media\\Livewire'
-        );
 
         Livewire::addNamespace(
             namespace: 'sn-media-filament',
@@ -117,11 +111,11 @@ class MediaServiceProvider extends PackageServiceProvider
     protected function getAssets(): array
     {
         return [
-            // 素材管理页本地交互态（累积多选 / 视图切换 / 拖拽上传 / 复制路径）
+            // Media page client state (multi-select, view mode, drag upload, copy path).
             AlpineComponent::make('sn-media-manager', __DIR__ . '/../resources/dist/components/media-manager.js'),
-            // MediaPicker 字段本地状态（选中回填 / 排序）
+            // MediaPicker field state (selection, sorting).
             AlpineComponent::make('sn-media-picker-field', __DIR__ . '/../resources/dist/components/picker-field.js'),
-            // FilePicker 字段（直接选文件上传，不打开素材弹窗）
+            // FilePicker field (direct upload, no modal).
             AlpineComponent::make('sn-media-file-picker-field', __DIR__ . '/../resources/dist/components/file-picker-field.js'),
         ];
     }

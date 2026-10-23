@@ -14,16 +14,14 @@ use Wsmallnews\Media\Models\MediaDirectory;
 class MediaManager
 {
     /**
-     * 上传并入账（统一上传管道：内容哈希 → 当天判重 → 写盘 → 读宽高 → 记录 sn_media）。
+     * Upload and register: hash content, dedupe same day, write, read dimensions, create the row.
      *
-     * 物理路径 = {file_directory}/{Ymd}/{内容md5}.{ext}（内容寻址）：
-     * - 当天同内容 = 同 path = 唯一索引命中 → 秒传复用已有记录（含并发撞索引回查）；
-     * - 隔天同内容 = 不同日期层 = 独立新文件；
-     * - path 生成后永不变（移动目录只改 media.directory_id 逻辑归属）。
+     * Path is content-addressed ({file_directory}/{Ymd}/{md5}.{ext}) and never changes: same
+     * content on the same day reuses the record, another day creates a new file.
      *
-     * @param  MediaDirectory|int|null  $directory  逻辑目录（模型/id/null=未归类）
-     * @param  string|null  $disk  目标盘（null = 活动盘；私有文件传私有盘名）
-     * @param  string|null  $fileDirectory  落盘目录（可带日期；null = config('sn-media.file_directory') + 日期）
+     * @param  MediaDirectory|int|null  $directory  Logical directory (model/id/null = uncategorized)
+     * @param  string|null  $disk  Target disk (null = active disk; pass a private disk name for private files)
+     * @param  string|null  $fileDirectory  Target directory (may carry a date; null = config + date)
      */
     public function upload(UploadedFile $file, MediaDirectory | int | null $directory = null, ?Model $uploader = null, ?int $teamId = null, ?string $disk = null, ?string $fileDirectory = null, ?array $acceptedMimes = null): Media
     {
@@ -42,7 +40,7 @@ class MediaManager
         $path = $this->resolvePath($modelClass, $hash, $ext, $disk, $teamId, $this->resolveFileDirectory($fileDirectory));
         $directoryId = $this->resolveDirectoryId($directory, $teamId);
 
-        // 当天秒传：同内容同 path 已有记录 → 直接复用（磁盘写入也跳过）
+        // Same content, same day: reuse the record and skip the disk write.
         $existing = $modelClass::findByPath($path, $teamId);
         if ($existing && $existing->disk === $disk && Storage::disk($disk)->exists($existing->path)) {
             return $existing;
@@ -84,17 +82,13 @@ class MediaManager
                 'uploader_id' => $uploader?->getKey(),
             ]);
         } catch (\Throwable $e) {
-            // 并发双传撞 path 唯一索引：回查复用；其他异常补偿删除已落盘文件
+            // Concurrent upload hit the unique path index: reuse the winner's record and keep its
+            // file. A row may land right after the lookup, so delete ours only if it is unreferenced.
             $existing = $modelClass::findByPath($path, $teamId);
             if ($existing && $existing->disk === $disk) {
-                // The other request owns the same deterministic path. Never
-                // delete it here: doing so would remove the file referenced by
-                // the record that won the race.
                 return $existing;
             }
 
-            // If another request inserts the row immediately after the lookup,
-            // leaving the file is safer than deleting a now-referenced object.
             if (! $modelClass::query()->where('path', $path)->exists()) {
                 Storage::disk($disk)->delete($path);
             }
@@ -104,7 +98,7 @@ class MediaManager
     }
 
     /**
-     * 上传并直接返回值对象（字段保存值）
+     * Upload and return the value object stored by the field.
      *
      * @return array{path: string, name: string, mime: string, size: int, width: int|null, height: int|null}
      */
@@ -114,14 +108,10 @@ class MediaManager
     }
 
     /**
-     * 只写盘、不入账（前台 / 业务字段专用）。
+     * Write to disk only, without an sn_media record.
      *
-     * 与 upload() 的区别只有最后一跳：不创建 sn_media 记录，因此不会出现在素材库里，
-     * 也没有目录归属 / 上传者 / 团队归属可言。校验（扩展名白名单、MIME 嗅探、大小）
-     * 与路径规则（内容寻址 {Ymd}/{md5}.{ext}）完全一致——不因为是「不进库」就放松。
-     *
-     * 适用：访客提交的表单附件、评论图片这类「只属于这条业务记录」的文件。
-     * 不入库 = 没有统一的引用计数，业务侧自己负责这条记录的清理（换图/删记录时删文件）。
+     * Same validation and path rules as upload(); with no record there is no reference counting,
+     * so the caller owns cleanup.
      *
      * @return array{path: string, name: string, mime: string, size: int, width: int|null, height: int|null}
      */
@@ -139,7 +129,7 @@ class MediaManager
         $ext = $this->extension($file);
         $path = $this->resolvePath(Utils::getMediaModel(), $this->contentHash($file), $ext, $disk, null, $this->resolveFileDirectory($fileDirectory));
 
-        // 内容寻址天然幂等：同内容同路径已存在就不用再写一遍
+        // Content addressing is idempotent: an existing path needs no second write.
         if (! Storage::disk($disk)->exists($path)) {
             $stream = @fopen((string) $file->getRealPath(), 'rb');
 
@@ -173,7 +163,7 @@ class MediaManager
     }
 
     /**
-     * 内容 md5（文件内容寻址；失败退化到随机串保证路径唯一）
+     * Content md5 for addressing; a random string when the file cannot be read.
      */
     protected function contentHash(UploadedFile $file): string
     {
@@ -191,7 +181,7 @@ class MediaManager
     }
 
     /**
-     * 大小 / 类型白名单 / MIME 嗅探一致性校验
+     * Size, extension allow-list and sniffed MIME must all agree.
      */
     protected function validate(UploadedFile $file, ?array $acceptedMimes = null): void
     {
@@ -215,8 +205,8 @@ class MediaManager
             throw new MediaException('File type is not allowed.');
         }
 
-        // 嗅探一致性：扩展名对应的真实 MIME 家族（finfo 内容嗅探必须命中，防改后缀伪装）。
-        // The MIME type must come from the temporary file contents, not the client-provided MIME header.
+        // The MIME must come from the file contents, never from the client-provided header;
+        // a whitelisted extension whose family does not match is a renamed file.
         $sniffed = $this->sniff($file);
         $allowedMimes = static::mimeFamilies()[$ext] ?? null;
 
@@ -260,7 +250,7 @@ class MediaManager
     }
 
     /**
-     * finfo 内容嗅探（真实 MIME；失败返回 null）
+     * Real MIME via finfo; null when it cannot be determined.
      */
     protected function sniff(UploadedFile $file): ?string
     {
@@ -276,7 +266,8 @@ class MediaManager
     }
 
     /**
-     * 扩展名 => 允许的嗅探 MIME 家族（条目支持 'text/*' 前缀通配；族表外的白名单扩展不嗅探）
+     * Extension => accepted sniffed MIME families ('text/*' prefix wildcards allowed).
+     * Extensions missing from the map are not sniffed.
      *
      * @return array<string, array<int, string>>
      */
@@ -350,7 +341,7 @@ class MediaManager
     }
 
     /**
-     * 面板租户（控制台 / 队列等无面板上下文时为 null）
+     * Panel tenant, null outside a panel context (console, queue).
      */
     protected function resolveTeamId(?int $requestedTeamId = null): ?int
     {
@@ -400,9 +391,10 @@ class MediaManager
     }
 
     /**
-     * 内容寻址路径：{已带日期的目录}/{内容 md5}.{ext}
+     * Content-addressed path: {dated directory}/{content md5}.{ext}.
      *
-     * 日期层由 resolveFileDirectory() 一次性拼好（Utils::withDate 幂等），这里不再加。
+     * The date layer is added by resolveFileDirectory(); a suffix is appended only when the
+     * path is already owned by another team or disk.
      */
     protected function resolvePath(string $modelClass, string $hash, string $ext, string $disk, ?int $teamId, string $directory): string
     {
@@ -419,14 +411,8 @@ class MediaManager
     }
 
     /**
-     * 归一落盘目录（**带日期**）。
-     *
-     * 幂等判断只有一处（Utils::withDate），所以调用处传什么都不用管：
-     * - null → config('sn-media.file_directory') + 日期；
-     * - 'sn/product/products' → 补日期；
-     * - Utils::getFileDirectory('products')（已带日期）→ 原样返回，不会变成两层日期。
-     *
-     * 中间还做逐段校验：拒绝空段 / . / .. ，杜绝路径穿越。
+     * Normalise the target directory and append the date (Utils::withDate is idempotent, so a
+     * dated directory is returned as is). Rejects empty, '.' and '..' segments to block traversal.
      */
     protected function resolveFileDirectory(?string $directory): string
     {

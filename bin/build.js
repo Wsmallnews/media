@@ -20,8 +20,8 @@ const defaultOptions = {
     bundle: true,
     mainFields: ['module', 'main'],
     platform: 'neutral',
-    // 必须显式 esm：AlpineComponent 资产经 x-load 的动态 import() 消费，
-    // IIFE 产物命名空间为空 → 组件函数解析为 false → Alpine.data 注册失败（组件静默失效的根因）
+    // Must be esm: AlpineComponents are consumed through x-load's dynamic import().
+    // An IIFE bundle has an empty namespace, so Alpine.data never registers (silent).
     format: 'esm',
     sourcemap: isDev ? 'inline' : false,
     sourcesContent: isDev,
@@ -56,7 +56,8 @@ compile({
         './resources/js/components/picker-field.js',
         './resources/js/components/file-picker-field.js',
     ],
-    // 保持 dist/components/*.js 的产物布局（多入口共同目录在 components 时 esbuild 会拍平到 dist 根）
+    // Keep the dist/components/*.js layout: esbuild flattens entry points into dist root when
+    // their common directory is components.
     outbase: './resources/js/',
     outdir: './resources/dist/',
 }).then(() => {

@@ -9,8 +9,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Wsmallnews\Media\Support\Utils;
 
 /**
- * 文件读取（inline 预览）：私有盘等无法直链的盘，由此路由流式输出。
- * 本地盘直接读文件；云盘 temporaryUrl（短效签名）跳转。
+ * Inline preview for disks without direct URLs: local disks stream the file, cloud disks
+ * redirect to a short-lived temporary URL.
  */
 class MediaFileController extends Controller
 {

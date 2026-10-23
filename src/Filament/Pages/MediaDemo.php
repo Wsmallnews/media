@@ -20,16 +20,7 @@ use Wsmallnews\Media\Filament\Forms\MediaPicker;
 use Wsmallnews\Support\Filament\Pages\PageConfiguration;
 
 /**
- * 官方演示页：把 MediaPicker / FilePicker 的**全部**能力摆在一起，供使用者照着抄。
- *
- * 覆盖范围（新增选项时必须同步补到这里，否则等于没文档）：
- * 单值 / 多值、网格 / 列表、上限、宽高比与固定尺寸、关闭文件信息、关闭放大预览、
- * 触发器图标与文案、仅 PDF / 全格式、弹窗形态（居中 / 左滑 / 右滑 / 宽度）、
- * 弹窗初始视图与排序、落盘子目录、path-only 契约、私有盘、storageOnly、
- * Repeater 嵌套（含嵌套内的 FilePicker 上传）。
- *
- * 注册方式：`config/sn-media.php` 的 `panel_register.pages`（MediaPlugin 读它）。
- * 正式发布时注释掉那一行即可从面板消失；本页不落任何业务表。
+ * Demo page for every MediaPicker / FilePicker option; a new option must be added here too.
  */
 class MediaDemo extends Page implements HasForms
 {
@@ -37,7 +28,7 @@ class MediaDemo extends Page implements HasForms
 
     public ?array $data = [];
 
-    /** 走 support 包的可配置页机制（panel_register.pages 里注册需要它） */
+    /** Required by the support package's configurable page mechanism */
     protected static ?string $configurationClass = PageConfiguration::class;
 
     protected static ?string $slug = 'media-demo';
@@ -66,7 +57,7 @@ class MediaDemo extends Page implements HasForms
     {
         return $schema
             ->components([
-                // ============ 图片 · 单值 ============
+                // Images: single value
                 Section::make('图片 · 单值')
                     ->description('触发器尺寸/比例由调用处定义；previewInfo(false) 只留缩略图，imagePreview(false) 关掉放大预览')
                     ->columns(4)
@@ -89,7 +80,7 @@ class MediaDemo extends Page implements HasForms
                             ->imagePreview(false),
                     ]),
 
-                // ============ 图片 · 多值 ============
+                // Images: multiple values
                 Section::make('图片 · 多值')
                     ->description('数组序即排序（拖拽换位）；itemsLayout 决定网格还是列表；maxCount 到达后触发器禁用、弹窗内也限选')
                     ->columns(2)
@@ -118,7 +109,7 @@ class MediaDemo extends Page implements HasForms
                             ->triggerLabel('添加（最多 2 张）'),
                     ]),
 
-                // ============ 非图片文件 ============
+                // Non-image files
                 Section::make('非图片文件')
                     ->description('非图片没有宽高；列表布局比扩展名色块更好认；下载以原始文件名返回')
                     ->columns(2)
@@ -142,7 +133,7 @@ class MediaDemo extends Page implements HasForms
                             ->columnSpanFull(),
                     ]),
 
-                // ============ 弹层形态（MediaPicker 专有） ============
+                // Picker form and initial view (MediaPicker only)
                 Section::make('弹层形态与初始视图')
                     ->description('pickerDisplay / pickerSlideOver / pickerWidth / pickerViewMode / pickerSortBy —— 只影响弹出的素材库，不影响字段取值')
                     ->columns(3)
@@ -165,7 +156,7 @@ class MediaDemo extends Page implements HasForms
                             ->pickerSortBy('name_asc'),
                     ]),
 
-                // ============ 触发器外观 ============
+                // Trigger appearance
                 Section::make('触发器外观（triggerIcon / triggerLabel）')
                     ->description('三处触发器（单值 / 网格瓦片 / 列表行）同一份实现：不传就只有加号；放不下自动换行，仍超宽则省略号')
                     ->columns(4)
@@ -186,7 +177,7 @@ class MediaDemo extends Page implements HasForms
                             ->triggerLabel('添加一行'),
                     ]),
 
-                // ============ 存储契约 ============
+                // Storage contract
                 Section::make('存储契约与落盘位置')
                     ->description('默认存完整值对象；storePath 只存路径字符串；directory 只改落盘子目录，不影响逻辑目录（directory_id）')
                     ->columns(3)
@@ -206,7 +197,7 @@ class MediaDemo extends Page implements HasForms
                             ->directory('products'),
                     ]),
 
-                // ============ FilePicker ============
+                // FilePicker: direct upload, no library modal
                 Section::make('直接上传（FilePicker：不打开素材库）')
                     ->description('点击直接拉起系统文件选择器；值契约与 MediaPicker 完全一致；支持私有盘与 storageOnly（只写盘、不入素材库、无引用计数）')
                     ->columns(3)
@@ -228,7 +219,7 @@ class MediaDemo extends Page implements HasForms
                             ->triggerLabel('上传临时文件'),
                     ]),
 
-                // ============ Repeater ============
+                // Repeater nesting
                 Section::make('Repeater 嵌套')
                     ->description('每行各自独立的字段实例：statePath 带行 key，选中态 / 上传槽 / 值回填都互不串台。这是 morph 压力最大的场景')
                     ->schema([
@@ -273,7 +264,7 @@ class MediaDemo extends Page implements HasForms
     }
 
     /**
-     * 当前 state 里需要用一句话说明「为什么长这样」的键（其余键见页面上的整体 JSON）
+     * Keys in the current state that need a one-line explanation (the full JSON is on the page).
      *
      * @return array<string, string>
      */

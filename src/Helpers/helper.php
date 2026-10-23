@@ -4,8 +4,8 @@ use Wsmallnews\Media\Support\MediaValue;
 
 if (! function_exists('media')) {
     /**
-     * 附件值 presenter：接受值对象数组 / 相对路径字符串 / Media 模型。
-     * 用法：media($product->image)->url(400) / ->name / ->width / ->downloadUrl()。
+     * Attachment presenter: value-object array, relative path or Media model.
+     * e.g. media($product->image)->url(400) / ->name / ->downloadUrl().
      */
     function media(mixed $value = null): MediaValue
     {
@@ -15,7 +15,7 @@ if (! function_exists('media')) {
 
 if (! function_exists('media_url')) {
     /**
-     * 附件访问 URL 快捷方式（宽度非空时按当前盘追加缩放参数）。
+     * Shortcut for the preview URL (adds the resize parameter when a width is given).
      */
     function media_url(mixed $value = null, ?int $width = null): ?string
     {

@@ -9,13 +9,8 @@ use Filament\Support\Enums\Width;
 use Wsmallnews\Media\Filament\Forms\Concerns\InteractsWithMediaField;
 
 /**
- * 素材选择字段：打开素材库弹窗选择（统一上传管道 + 素材库复用）。
- *
- * 字段状态（值契约）：
- * - 单值：{path, name, mime, size, width, height} | null
- * - 多值：上述对象的数组，数组序即排序（模型侧建议 cast 为 array）
- *
- * 共同部分（触发器尺寸、上限、列表/网格、状态归一）见 InteractsWithMediaField。
+ * Picks media from the library modal; the stored value is the selected value object(s).
+ * Single: {path, name, mime, size, width, height} | null; multiple: the same objects in order.
  */
 class MediaPicker extends Field
 {
@@ -23,18 +18,18 @@ class MediaPicker extends Field
 
     protected string $view = 'sn-media::filament.forms.media-picker';
 
-    /** 弹层形态：'modal'（居中）| 'slide-over'（侧滑） */
+    /** Picker form: 'modal' (centered) | 'slide-over' */
     protected string | Closure $pickerDisplay = 'modal';
 
     protected SlideOverPosition | string | Closure $pickerSlideOverPosition = SlideOverPosition::End;
 
-    /** null = 取默认 5xl（居中、侧滑同宽） */
+    /** null = default 5xl (same width for modal and slide-over) */
     protected Width | string | Closure | null $pickerWidth = null;
 
-    /** 弹窗初始视图：grid | list（null = grid） */
+    /** Initial view: grid | list (null = grid) */
     protected string | Closure | null $pickerViewMode = null;
 
-    /** 弹窗初始排序（null = created_desc，值域见 Picker::sortOptions()） */
+    /** Initial sort (null = created_desc; see Picker::sortOptions()) */
     protected string | Closure | null $pickerSortBy = null;
 
     protected function setUp(): void
@@ -47,7 +42,7 @@ class MediaPicker extends Field
     }
 
     /**
-     * 弹窗初始视图：'grid'（默认）| 'list'（文件类字段列表更好选）。
+     * Initial view: 'grid' (default) | 'list', which is easier for file fields.
      */
     public function pickerViewMode(string | Closure $mode): static
     {
@@ -57,7 +52,7 @@ class MediaPicker extends Field
     }
 
     /**
-     * 弹窗初始排序（值域见 Picker::sortOptions()）。
+     * Initial sort (values in Picker::sortOptions()).
      */
     public function pickerSortBy(string | Closure $sort): static
     {
@@ -67,7 +62,7 @@ class MediaPicker extends Field
     }
 
     /**
-     * 弹层形态：'modal' 居中（默认，限高、素材区内部滚动）| 'slide-over' 侧滑（满高）。
+     * Picker form: 'modal' (centered, capped height) | 'slide-over' (full height).
      */
     public function pickerDisplay(string | Closure $display): static
     {
@@ -77,7 +72,7 @@ class MediaPicker extends Field
     }
 
     /**
-     * 侧滑形态（等价于 pickerDisplay('slide-over')），并把方向一起定掉。
+     * Slide-over form (same as pickerDisplay('slide-over')) with its direction.
      */
     public function pickerSlideOver(SlideOverPosition | string | Closure $position = SlideOverPosition::End): static
     {
@@ -88,7 +83,7 @@ class MediaPicker extends Field
     }
 
     /**
-     * 弹层宽度（Filament Width 枚举或 '5xl' 这类字符串）。
+     * Picker width (a Filament Width enum or a string such as '5xl').
      */
     public function pickerWidth(Width | string | Closure $width): static
     {
@@ -146,7 +141,7 @@ class MediaPicker extends Field
     }
 
     /**
-     * 传给弹窗组件与字段 Alpine 的 props
+     * Props passed to the picker component and the field's Alpine component.
      */
     public function getPickerProps(): array
     {

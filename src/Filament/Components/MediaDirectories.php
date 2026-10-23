@@ -3,6 +3,7 @@
 namespace Wsmallnews\Media\Filament\Components;
 
 use Filament\Forms;
+use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\HtmlString;
@@ -40,6 +41,15 @@ class MediaDirectories extends SidebarNestedset
         );
     }
 
+    /**
+     * The sidebar is 224px wide; 11rem keeps the menu inside it, otherwise the floating
+     * middleware pushes it out. The string becomes a panel class (see index.css).
+     */
+    protected function getRowActionsDropdownWidth(): string | Width | null
+    {
+        return 'sn-media-row-actions-dropdown';
+    }
+
     protected function schema(array $arguments): array
     {
         return [
@@ -67,7 +77,7 @@ class MediaDirectories extends SidebarNestedset
     }
 
     /**
-     * Recursively accumulate counts: each node's total = own files + all descendants' files.
+     * Recursively accumulate counts: a node's total is its own files plus all descendants'.
      *
      * @param  Collection<int, Model>  $nodes
      * @param  Collection<int, int>  $directCounts

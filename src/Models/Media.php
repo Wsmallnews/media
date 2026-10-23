@@ -19,7 +19,7 @@ class Media extends SupportModel
     protected $casts = [];
 
     /**
-     * 按相对路径查记录（path 唯一索引）
+     * Find a record by relative path (unique index).
      */
     public static function findByPath(string $path, ?int $teamId = null): ?self
     {
@@ -35,7 +35,7 @@ class Media extends SupportModel
     }
 
     /**
-     * 值对象：业务字段的保存值
+     * Value object stored by business fields.
      *
      * @return array{path: string, name: string, mime: string, size: int, width: int|null, height: int|null}
      */
@@ -57,7 +57,7 @@ class Media extends SupportModel
     }
 
     /**
-     * 访问 URL（渲染层统一入口，禁止模板手拼）
+     * Public URL entry point; templates must never build URLs themselves.
      */
     public function url(?int $width = null): string
     {
@@ -65,7 +65,7 @@ class Media extends SupportModel
     }
 
     /**
-     * 媒体类型（由 mime/ext 派生）
+     * Media type derived from mime/ext.
      */
     protected function mediaType(): Attribute
     {
@@ -73,11 +73,7 @@ class Media extends SupportModel
     }
 
     /**
-     * 人类可读的文件大小（1.2 MB）。
-     *
-     * 展示用的派生值，不是存储字段：`size` 本身仍是字节数（值对象 toValue() 也照旧给 int），
-     * 只是把「字节 → 可读」这一步从页面组件挪到模型上，任何拿到模型的地方（其他包、
-     * 导出、通知）都能直接用，不必依赖 media 的 Filament 组件，也不必自己再写一份换算。
+     * Human-readable size (1.2 MB); derived from the `size` bytes, never stored.
      */
     protected function sizeForHumans(): Attribute
     {
@@ -85,7 +81,7 @@ class Media extends SupportModel
     }
 
     /**
-     * 按逻辑目录筛选（含子孙目录的文件）
+     * Filter by logical directory (files in descendants included).
      *
      * @param  int|array<int, int>  $directoryIds
      */
@@ -95,11 +91,10 @@ class Media extends SupportModel
     }
 
     /**
-     * 按 mime 模式筛选（字段级约束：image/* 这类前缀，或 application/pdf 这类精确值）
+     * Filter by MIME pattern: `image/*` prefix or an exact value.
      *
-     * 只比对 mime 列：像 zip/docx 这类家族里存在 application/octet-stream 兜底，
-     * 若把 octet-stream 写进约束，这一层等于不过滤——真要按家族收窄，调用处
-     * 应该同时给 ext 条件（本 scope 不做，保持语义单一）。
+     * Only the mime column is compared, so a family whose files sniff as
+     * application/octet-stream would not be narrowed here; combine with ext if needed.
      *
      * @param  array<int, string>  $patterns
      */
@@ -117,7 +112,7 @@ class Media extends SupportModel
     }
 
     /**
-     * 未归类（directory_id 为 NULL）
+     * Uncategorized files (directory_id is NULL).
      */
     public function scopeUncategorized(Builder $query): Builder
     {
@@ -125,7 +120,7 @@ class Media extends SupportModel
     }
 
     /**
-     * 按类型筛选（File 为兜底类型，不过滤）
+     * Filter by type; File is the fallback type and does not filter.
      */
     public function scopeOfMediaType(Builder $query, MediaType $type): Builder
     {
@@ -143,7 +138,7 @@ class Media extends SupportModel
     }
 
     /**
-     * 目录前缀（虚拟目录树）
+     * Path prefix (virtual directory tree).
      */
     public function scopeDirectory(Builder $query, string $prefix): Builder
     {
@@ -151,7 +146,7 @@ class Media extends SupportModel
     }
 
     /**
-     * 名称 / 路径搜索
+     * Search by name or path.
      */
     public function scopeSearch(Builder $query, string $keyword): Builder
     {
@@ -159,7 +154,7 @@ class Media extends SupportModel
     }
 
     /**
-     * 当前租户（无租户上下文为 NULL）
+     * Current tenant (NULL without a tenant context).
      */
     public function team(): BelongsTo
     {
@@ -167,7 +162,7 @@ class Media extends SupportModel
     }
 
     /**
-     * 上传者
+     * Uploader.
      */
     public function uploader(): MorphTo
     {
@@ -175,7 +170,7 @@ class Media extends SupportModel
     }
 
     /**
-     * 逻辑目录
+     * Logical directory.
      */
     public function directory(): BelongsTo
     {

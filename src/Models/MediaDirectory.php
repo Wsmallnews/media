@@ -10,36 +10,33 @@ use Wsmallnews\Support\Models\SupportModel;
 use Wsmallnews\Support\Support\Utils as SupportUtils;
 
 /**
- * 素材逻辑目录（嵌套集树，层级最多 3 级）。
- *
- * 目录是纯逻辑归类：文件物理路径不含目录（sn/{Ymd}/{hash}.ext），
- * 归属经 media.directory_id；移动文件 / 重命名目录均不改物理路径。
+ * Logical media directory (nested set, max 3 levels). Physical paths never contain it:
+ * ownership lives in media.directory_id, so moving files or renaming never touches the path.
  */
 class MediaDirectory extends SupportModel
 {
     use NodeTrait;
 
-    /** 目录最大层级（根 = 第 1 级） */
+    /** Max depth (root = level 1) */
     public const MAX_DEPTH = 3;
 
     protected $table = 'sn_media_directories';
 
     /**
-     * 多租户 scope（嵌套集 scoped 特性：同租户一棵树）
+     * Multi-tenant scope: one tree per tenant.
      */
     public function getScopeAttributes(): array
     {
         $scopes = [];
-        if (SupportUtils::isTenancyEnabled()) {        // 多租户 时，自动增加 租户相关参数
+        if (SupportUtils::isTenancyEnabled()) {
             $scopes[] = 'team_id';
         }
 
         return $scopes;
     }
 
-
     /**
-     * 含自身的子孙 id 列表（一次查询）
+     * Ids of this node and all descendants, in one query.
      *
      * @return array<int, int>
      */
