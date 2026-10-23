@@ -4,7 +4,7 @@
     $props = $getPickerProps();
 @endphp
 
-{{-- 字段外壳由 Filament 包装器渲染（官方自定义字段写法） --}}
+{{-- Field shell is rendered by Filament's wrapper view (standard custom field setup). --}}
 <x-dynamic-component :component="$getFieldWrapperView()" :field="$field" label-tag="div">
     <div
         x-load
@@ -12,7 +12,7 @@
         x-data="snFilePickerField({{ Js::from($props) }})"
         {{ $attributes->merge(['class' => 'sn-file-picker-field']) }}
     >
-        {{-- 触发外观与预览层和 MediaPicker 共用同一套组件；这里点触发器直接拉系统文件选择器 --}}
+        {{-- Shares the trigger and preview components with MediaPicker, but clicking here opens the native file dialog. --}}
         <div wire:ignore>
             <template x-if="! multiple">
                 <x-sn-media::filament.forms.media-field-single
@@ -48,7 +48,8 @@
 
         </div>
 
-        <x-filament::input
+        {{-- Native on purpose: a hidden file input is plumbing, not a form control. --}}
+        <input
             type="file"
             x-ref="input"
             class="hidden"

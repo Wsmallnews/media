@@ -5,20 +5,20 @@
 
 <x-filament-panels::page>
     <div
-        {{-- Alpine 资产组件需显式 x-load 触发脚本加载，否则 x-data 函数未定义会连坐整个子树 --}}
+        {{-- Alpine assets need an explicit x-load, otherwise the x-data function is undefined and the whole subtree breaks. --}}
         x-load
         x-load-src="{{ \Filament\Support\Facades\FilamentAsset::getAlpineComponentSrc('sn-media-manager', 'wsmallnews/media') }}"
         x-data="snMediaManager({{ \Illuminate\Support\Js::from([
             'uploadingLabel' => __('sn-media::media.notifications.uploading'),
             'rejectedLabel' => __('sn-media::media.notifications.upload_rejected_default'),
             'tooLargeLabel' => __('sn-media::media.notifications.upload_too_large', ['name' => '__NAME__', 'max' => '__MAX__']),
-            // 与选择弹窗同源：取 PHP / Livewire / 包配置的最小值（见 UploadsMedia::maxUploadKb）
+            // Same source as the picker: min of PHP / Livewire / package limits (see UploadsMedia::maxUploadKb).
             'maxUploadKb' => $this->maxUploadKb(),
         ]) }})"
         @sn-media-open-upload.window="$refs.fileInput.click()"
         class="sn-media-page">
 
-        {{-- 卡片固定为视口内高度（扣除页头/边距），内容区竖向内滚，页面本身不滚动 --}}
+        {{-- Card height is derived from the viewport; only the inner area scrolls, never the page. --}}
         <div class="@container flex h-[calc(100vh-230px)] min-h-[480px] flex-col overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
             <x-sn-media::filament.components.media-library-toolbar
                 :breadcrumb="$this->directoryBreadcrumb()"
@@ -28,7 +28,7 @@
                 :view-mode="$viewMode"
             />
 
-            {{-- 批量操作条（Alpine 本地选中态） --}}
+            {{-- Bulk action bar, driven by the local Alpine selection. --}}
             <div x-show="selected.length" x-cloak
                 class="flex flex-wrap items-center gap-2 border-b border-primary-100 bg-primary-50 px-3 py-2 text-sm dark:border-primary-500/20 dark:bg-primary-500/10">
                 <span class="font-medium text-primary-700 dark:text-primary-300">
@@ -47,19 +47,18 @@
                 </x-filament::button>
             </div>
 
-            {{-- 主体：吃掉工具栏/状态栏以外的全部高度，树和内容各自内滚。
-                 断点走容器查询（@3xl = 48rem）：Filament 侧边栏折叠会改变内容区宽度而视口不变，
-                 视口断点（md:）在那时不响应。目录树外壳已同步改为 @3xl，两者同源不会错配。 --}}
+            {{-- Body takes the remaining height; tree and content scroll independently.
+                 Container queries (@3xl) are used because collapsing the Filament sidebar changes
+                 the content width while the viewport stays the same. --}}
             <div class="flex min-h-0 min-w-0 flex-1 flex-col @3xl:flex-row">
-                {{-- 左侧：目录树 + 「全部 / 未归类」，与选择弹窗共用 media-library-sidebar
-                    （aside 外壳、断点、滚动都在组件里，这里只喂数据） --}}
+                {{-- Same sidebar component as the picker; the aside shell, breakpoints and scroll live in it. --}}
                 <x-sn-media::filament.components.media-library-sidebar
                     :active-dir="$libraryDir"
                     :all-count="$this->typeCounts['all'] ?? 0"
                     :uncategorized-count="$this->uncategorizedCount"
                 />
 
-                {{-- 右侧：内容区（chips 固定，列表/瓦片区自身滚动——横向滚动条钉在可视区底部） --}}
+                {{-- Content area: the chips stay put, the list / grid scrolls on its own. --}}
                 <div class="relative flex min-h-0 min-w-0 flex-1 flex-col p-3"
                     data-page-ids='@json($this->medias->getCollection()->pluck('id')->values())'
                     @dragenter.prevent="dragOver = true"
@@ -80,7 +79,7 @@
                         @endforeach
                     </div>
 
-                    {{-- 拖拽上传覆盖层 --}}
+                    {{-- Drag-and-drop upload overlay. --}}
                     <div x-show="dragOver" x-cloak
                         class="pointer-events-none absolute inset-2 z-10 grid place-items-center rounded-xl border-2 border-dashed border-primary-400 bg-primary-50/90 dark:bg-primary-500/10">
                         <div class="text-center">
@@ -89,11 +88,11 @@
                         </div>
                     </div>
 
-                    {{-- 上传进度（与选择弹窗、FilePicker 共用同一个组件） --}}
+                    {{-- Upload progress, shared with the picker and the FilePicker. --}}
                     <x-sn-media::filament.components.upload-progress />
 
                     @if (count($this->medias) === 0)
-                        {{-- 空态分两种：库里没东西 vs 筛选没结果。混用「暂无素材」会让用户以为库是空的。 --}}
+                        {{-- Two empty states: empty library vs. no filter match; mixing them reads as an empty library. --}}
                         <div class="grid min-h-0 flex-1 place-items-center">
                             @if ($this->hasActiveLibraryFilter())
                                 <x-filament::empty-state :contained="false" :icon="Heroicon::OutlinedMagnifyingGlass"
@@ -106,13 +105,13 @@
                             @endif
                         </div>
                     @elseif ($viewMode === 'grid')
-                        {{-- 大图标视图（自身竖向滚动；p-1 给选中 ring 留空间防止被 overflow 裁掉） --}}
+                        {{-- Grid view; p-1 leaves room for the selection ring so overflow does not clip it. --}}
                         <div class="min-h-0 flex-1 overflow-y-auto p-1">
                             <div class="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(112px,1fr))]">
                             @foreach ($this->medias as $media)
-                                {{-- 叠层用 grid 而不是 absolute：absolute 的小容器会成为 dropdown 面板的
-                                     containing block，面板的 bottom-end 只能相对那 40px 盒子算，右对齐失效。
-                                     grid item 允许 z-index 但不算 positioned，面板会相对本瓦片定位。 --}}
+                                {{-- Stacking uses grid rather than absolute: an absolute box would become the
+                                     dropdown's containing block and break its right alignment; grid items
+                                     accept z-index without being positioned. --}}
                                 <div class="group relative grid" wire:key="sn-media-grid-{{ $media->id }}">
                                     <x-filament::button
                                         type="button"
@@ -136,8 +135,7 @@
                                     </span>
                                     <span class="line-clamp-2 w-full break-all text-center text-xs leading-4 text-gray-700 dark:text-gray-300">{{ $media->name }}</span>
                                     </x-filament::button>
-                                    {{-- 菜单与选择按钮同级，避免在按钮内嵌套交互元素。
-                                         外层是 grid item（不定位）只负责右上角对齐与点击穿透，内层保留原视觉。 --}}
+                                    {{-- Menu sits beside the button: interactive elements must not be nested in a button. --}}
                                     <div
                                         class="pointer-events-none z-10 col-start-1 row-start-1 flex items-start justify-end p-1"
                                         @click.stop
@@ -151,10 +149,11 @@
                             </div>
                         </div>
                     @else
-                        {{-- 详细信息视图（含目录列）：双向滚动容器吃满剩余高度，横向滚动条钉在可视区底部 --}}
+                        {{-- List view with a directory column; scrolls both ways inside the remaining height. --}}
                         <div class="min-h-0 flex-1 overflow-auto text-sm">
                             <div class="min-w-[720px] px-1">
-                                {{-- 表头 px-3 = 行容器 px-1 + 行外壳 px-2，两边对齐才能让列头和行内容落在同一条竖线上 --}}
+                                {{-- Header px-3 = row container px-1 + row shell px-2; if they drift, the
+                                     column headings stop lining up with the rows. --}}
                                 <div class="flex items-center gap-3 border-b border-gray-200 px-3 pb-2 text-xs font-medium text-gray-400 dark:border-gray-700">
                                     <span class="w-10 shrink-0"></span>
                                     <span class="min-w-[180px] max-w-[420px] flex-1">{{ __('sn-media::media.list.name') }}</span>
@@ -166,8 +165,9 @@
                                 </div>
                                 <div class="mt-1 space-y-0.5">
                                     @foreach ($this->medias as $media)
-                                        {{-- 选中环挂在外壳上：菜单是 button 的兄弟节点，放不进 button（嵌套交互元素非法），
-                                             只有把 hover / ring 提到外壳才能让选中框覆盖整行、把操作列包进来 --}}
+                                        {{-- The ring lives on the shell: the menu is a sibling of the button
+                                             (nesting is illegal), so only hoisting hover / ring to the shell
+                                             lets the selection outline cover the whole row. --}}
                                         <div
                                             class="sn-media-row-shell transition"
                                             wire:key="sn-media-row-{{ $media->id }}"
@@ -195,7 +195,7 @@
                                             <span class="w-24 shrink-0 text-xs text-gray-500">{{ $media->mediaType->getLabel() }}</span>
                                             <span class="w-20 shrink-0 text-right text-xs text-gray-500">{{ $media->size_for_humans }}</span>
                                             </x-filament::button>
-                                            {{-- 行内操作恒显（对齐 Filament 表格行操作行为，不依赖 hover，避免遮罩/触屏环境不可达） --}}
+                                            {{-- Row actions always visible: hover-only actions are unreachable on touch and under overlays. --}}
                                             <div class="flex w-12 shrink-0 justify-end" @click.stop>
                                                 {{ $this->mediaMenuActions($media) }}
                                             </div>
@@ -208,7 +208,7 @@
                 </div>
             </div>
 
-            {{-- 状态栏：分页（容器查询组件，需占满宽度才会呈现常规形态：左概览/每页条数 + 右页码组） --}}
+            {{-- Status bar with pagination; the container-query component needs full width for its normal layout. --}}
             <div class="border-t border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50">
                 <x-filament::pagination
                     class="w-full"
@@ -219,7 +219,7 @@
             </div>
         </div>
 
-        {{-- 预览弹层交给 Filament，保留它的焦点管理、Esc / 点击遮罩关闭和主题样式。 --}}
+        {{-- Preview reuses Filament's modal to keep focus management, Esc / backdrop close and theming. --}}
         <x-filament::modal id="sn-media-preview" width="2xl">
             @if ($this->previewMedia)
                 @php($previewMedia = $this->previewMedia)
@@ -279,10 +279,11 @@
             @endif
         </x-filament::modal>
 
-        {{-- 文件输入（页头上传 + 拖拽共用；JS 预检大小后手动 uploadMultiple） --}}
-        <x-filament::input type="file" multiple x-ref="fileInput" class="hidden" x-on:change="onFilePick($event)" />
+        {{-- File input shared by the header upload and drag-drop; JS pre-checks size, then calls uploadMultiple. --}}
+        {{-- Native on purpose: a hidden file input is plumbing, not a form control. --}}
+        <input type="file" multiple x-ref="fileInput" class="hidden" x-on:change="onFilePick($event)" />
     </div>
 
-    {{-- 目录/素材操作 Actions（Filament 原生 modal 渲染容器） --}}
+    {{-- Directory / media actions, rendered by Filament's native action modal container. --}}
     <x-filament-actions::modals />
 </x-filament-panels::page>
