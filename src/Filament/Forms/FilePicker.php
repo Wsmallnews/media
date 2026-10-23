@@ -9,27 +9,13 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Renderless;
 use Throwable;
+use Wsmallnews\Media\Filament\Concerns\UploadsMedia;
 use Wsmallnews\Media\Filament\Forms\Concerns\InteractsWithMediaField;
-use Wsmallnews\Media\Support\Concerns\UploadsMedia;
 use Wsmallnews\Media\Support\Utils;
 
 /**
- * 直接选文件的上传字段（字段自己存值，不经素材库选择）：
- * 点击触发系统文件选择器 → 上传 → 值对象回填字段。
- * 适用：证书等敏感/业务文件——支持 ->disk('private') 私有盘（不可直链，预览经 file 路由）。
- *
- * storageOnly()：只写盘、不写 sn_media（文件不进素材库、不参与素材库审计与去重记录），
- * 适合访客提交的表单附件这类「只属于这条业务记录」的文件；代价是引用计数没了，
- * 换图 / 删记录时业务侧要自己删文件。
- *
- * 传输与素材页 / 选择弹窗统一：同样走 **Livewire 上传**，只是接收槽不同——
- * 字段不在 Livewire 组件里，文件先落到宿主表单的 componentFileAttachments.{statePath}
- * （Filament v5 的 InteractsWithSchemas 自带 WithFileUploads + 这个槽），
- * 再由 storeUploadedMedia() 交给同一套 MediaManager 落库/落盘。
- * 好处：进度与失败都能拿到回调（$wire.upload 的 progress/error），不再依赖独立 HTTP 端点。
- *
- * 值契约、触发外观、多值排序/上限与 MediaPicker 完全一致（同用 InteractsWithMediaField），
- * 差别只有值的来源。
+ * Upload field that picks files directly: click, system file dialog, upload, value object.
+ * The file arrives in the host form's componentFileAttachments slot, then goes to MediaManager.
  */
 class FilePicker extends Field
 {
@@ -40,7 +26,7 @@ class FilePicker extends Field
 
     protected string | Closure | null $disk = null;
 
-    /** 只写盘、不入 sn_media（文件不进素材库） */
+    /** Write to disk only, no sn_media record */
     protected bool | Closure $storageOnly = false;
 
     protected function setUp(): void
@@ -53,7 +39,7 @@ class FilePicker extends Field
     }
 
     /**
-     * 目标盘（null = 活动盘；敏感文件传私有盘名，如 'local' 私有盘或自建 'private' 盘）
+     * Target disk (null = active disk); pass a private disk name for sensitive files.
      */
     public function disk(string | Closure | null $disk): static
     {
@@ -70,7 +56,7 @@ class FilePicker extends Field
     }
 
     /**
-     * 只写盘、不入账：文件不进素材库
+     * Disk only: the file never enters the media library.
      */
     public function storageOnly(bool | Closure $condition = true): static
     {
@@ -85,19 +71,9 @@ class FilePicker extends Field
     }
 
     /**
-     * 把附件槽里的临时文件落库/落盘，返回值对象与预览地址（JS 侧并入 values）。
-     *
-     * 由前端在 $wire.upload 完成后经 callSchemaComponentMethod 调用：
-     * 临时文件此时已在 componentFileAttachments.{statePath}[.{key}]，同一轮请求里就能取到。
-     * 失败原因走统一通知（uploadFailed），返回 null 让前端不做任何并入。
-     *
-     * 槽位名是 Filament v5 的约定（MarkdownEditor / RichText 的附件上传同款）。这里不用
-     * HasFileAttachments::getUploadedFileAttachment()：它自带一套 size / mime 校验，
-     * 还会把返回值收窄成 TemporaryUploadedFile，和 MediaManager 的校验与测试替身都会打架。
-     * 校验只留一处（MediaManager），前端也拿不到任何可篡改的上传参数。
-     *
-     * $isLastOfBatch / $batchCount 由前端在「这一批的最后一个文件」上传完成时带上：
-     * 字段是一个文件一次请求，服务端无法自己知道批次边界；不带就只在服务端静默成功。
+     * Move the attachment into storage and return its value plus preview URL; JS calls this
+     * after $wire.upload. Validation stays in MediaManager (HasFileAttachments would add its
+     * own). $isLastOfBatch comes from JS: one request per file, so the server cannot know.
      *
      * @return array{value: array<string, mixed>, url: ?string}|null
      */
@@ -110,7 +86,7 @@ class FilePicker extends Field
         $file = data_get($this->getLivewire(), $slot);
 
         if (! $file instanceof UploadedFile) {
-            // 槽里没有文件：传输被拒（超 Livewire / PHP 限制）或已被消费
+            // Empty slot: the transfer was rejected (size limits) or already consumed.
             $this->uploadFailed();
 
             return null;
@@ -129,7 +105,7 @@ class FilePicker extends Field
 
                 return [
                     'value' => $value,
-                    // 私有盘不可直链：给 null，字段侧退化成类型角标（预览走业务自己的下载路由）
+                    // Private disks have no direct URL: return null and let the field show a type badge.
                     'url' => Utils::getDiskVisibility($disk) === 'public'
                         ? Storage::disk($disk)->url($value['path'])
                         : null,
@@ -143,7 +119,7 @@ class FilePicker extends Field
                 acceptedMimes: $this->getAcceptedMimes() ?: null,
             );
 
-            // 与素材页 / 选择弹窗一致的节奏：一批传完只报一次「已上传 N 个文件」
+            // Same rhythm as the media page: report once per batch.
             if ($isLastOfBatch) {
                 $this->notifyMediaUploaded($batchCount);
             }
@@ -157,10 +133,8 @@ class FilePicker extends Field
     }
 
     /**
-     * 传输层拒绝时的通知入口（前端 error 回调调它）。
-     *
-     * 前端不能直接 `$wire.uploadFailed()`：字段的 `$wire` 是宿主表单组件，
-     * 它并不知道这个包（也不该为这个包加 trait），所以必须回到字段实例上再发通知。
+     * Notification entry point for the JS error callback: the field's $wire is the host form,
+     * which knows nothing about this package, so the call must come back to the field.
      */
     #[ExposedLivewireMethod]
     #[Renderless]
@@ -170,20 +144,18 @@ class FilePicker extends Field
     }
 
     /**
-     * 传给字段 Alpine 的 props
-     *
-     * 上传参数（disk / storageOnly / mimes / 目录）一律不下发：它们由服务端在
-     * storeUploadedMedia() 里从字段自身读取，前端连改的入口都没有。
+     * Props passed to the field's Alpine component. Upload options stay server-side: the field
+     * reads them in storeUploadedMedia(), so the client has nothing to tamper with.
      */
     public function getPickerProps(): array
     {
         return [
             ...$this->mediaFieldProps(),
-            // callSchemaComponentMethod 要用字段 key 找到这个字段实例
+            // callSchemaComponentMethod looks the field instance up by key
             'fieldKey' => $this->getKey(),
             'uploadingLabel' => __('sn-media::media.notifications.uploading'),
             'rejectedLabel' => __('sn-media::media.notifications.upload_rejected_default'),
-            // 上传前大小预检：与素材页 / 选择弹窗同一套上限（PHP ini / Livewire / 配置的最小值）
+            // Pre-check with the same limit as the media page (smallest of PHP / Livewire / config)
             'tooLargeLabel' => __('sn-media::media.notifications.upload_too_large', ['name' => '__NAME__', 'max' => '__MAX__']),
             'maxUploadKb' => $this->maxUploadKb(),
         ];
