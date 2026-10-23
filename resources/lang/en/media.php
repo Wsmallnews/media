@@ -16,7 +16,9 @@ return [
     'toolbar' => [
         'upload' => 'Upload',
         'search_placeholder' => 'Search name / path',
+        'breadcrumb' => 'Current location',
         'sort' => [
+            'label' => 'Sort by',
             'created_desc' => 'Newest',
             'created_asc' => 'Oldest',
             'name_asc' => 'Name A→Z',
@@ -35,7 +37,6 @@ return [
         'all' => 'All files',
         'uncategorized' => 'Uncategorized',
         'empty' => 'No directories yet',
-        'tree_hint' => 'Directories are logical groups (max 3 levels). Moving files never changes their physical paths.',
     ],
 
     'list' => [
@@ -46,6 +47,8 @@ return [
         'actions' => 'Actions',
         'empty_heading' => 'No media yet',
         'empty' => 'No media here. Drop files to upload',
+        'empty_filtered_heading' => 'No matching media',
+        'empty_filtered' => 'Nothing under this directory / type / keyword combination. Change or clear the filters',
         'selected_count' => ':count selected',
         'selected_prefix' => 'Selected',
         'select_all_page' => 'Select page',
@@ -116,25 +119,23 @@ return [
 
     'picker' => [
         'select' => 'Select media',
-        'empty_heading' => 'No matching media',
-        'empty' => 'No matching media. Search, switch directory, or use Upload',
+        'empty_heading' => 'The library is empty',
+        'empty' => 'No media yet. Use Upload to add files',
+        'empty_filtered_heading' => 'No matching media',
+        'empty_filtered' => 'Nothing under this directory / type / keyword combination. Change or clear the filters',
         'selected_count' => ':count selected',
         'selected_prefix' => 'Selected',
         'single_mode' => 'Single',
         'multiple_mode' => 'Multiple',
         'cancel' => 'Cancel',
         'confirm' => 'Confirm',
-        'trigger_select' => 'Select image',
-        'trigger_add' => 'Add',
+        'trigger' => 'Select file',
         'replace' => 'Replace',
         'remove' => 'Remove',
-        'move_up' => 'Move up',
-        'move_down' => 'Move down',
-    ],
-
-    'file_picker' => [
-        'trigger' => 'Select file (not in library)',
-        'replace' => 'Choose another',
+        'preview' => 'Preview',
+        'close_preview' => 'Close preview',
+        'remaining' => ':count more',
+        'limit_reached' => 'Limit of :max reached',
     ],
 
     'types' => [

@@ -1,82 +1,79 @@
 @php
-    use Filament\Support\Icons\Heroicon;
+    use Illuminate\Support\Js;
 
     $props = $getPickerProps();
 @endphp
 
-<div
-    x-load
-    x-load-src="{{ \Filament\Support\Facades\FilamentAsset::getAlpineComponentSrc('sn-media-picker-field', 'wsmallnews/media') }}"
-    x-data="snMediaPickerField({{ \Illuminate\Support\Js::from($props) }})"
-    x-on:sn-media-selected.window="onSelected($event.detail)"
-    x-on:sn-media-picker-closed.window="onClosed($event.detail)"
-    {{ $attributes->merge(['class' => 'sn-media-picker-field']) }}>
-    {{-- 本地状态承载区（wire:ignore：所有变更经 Alpine 本地状态 + $wire.set 回写，避免 morph 干扰） --}}
-    <div wire:ignore>
-
-        {{-- 单值形态 --}}
-        <template x-if="!multiple">
-            <div>
-                <template x-if="values">
-                    <div class="flex items-start gap-3">
-                        <button type="button" @click="open = true" class="relative block w-36 shrink-0 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700" :style="'aspect-ratio:' + ratio">
-                            <img :src="thumbSrc(values)" class="size-full object-cover" alt="">
-                        </button>
-                        <div class="min-w-0 flex-1 text-sm">
-                            <p class="truncate font-medium" x-text="values.name"></p>
-                            <p class="mt-1 text-xs text-gray-500" x-text="valueMeta(values)"></p>
-                            <p class="mt-0.5 truncate font-mono text-[11px] text-gray-400" x-text="values.path"></p>
-                            <div class="mt-2 flex gap-2">
-                                <button type="button" @click="open = true" class="rounded-md border border-gray-300 px-2.5 py-1 text-xs hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800">{{ __('sn-media::media.picker.replace') }}</button>
-                                <button type="button" @click="removeSingle()" class="rounded-md border border-gray-300 px-2.5 py-1 text-xs text-danger-600 hover:bg-danger-50 dark:border-gray-600 dark:hover:bg-danger-500/10">{{ __('sn-media::media.picker.remove') }}</button>
-                            </div>
-                        </div>
-                    </div>
-                </template>
-                <template x-if="!values">
-                    <button type="button" @click="open = true"
-                        class="grid w-36 place-items-center rounded-lg border-2 border-dashed border-gray-300 text-sm text-gray-400 transition hover:border-primary-400 hover:text-primary-500 dark:border-gray-600"
-                        :style="'aspect-ratio:' + ratio">
-                        + {{ __('sn-media::media.picker.trigger_select') }}
-                    </button>
-                </template>
-            </div>
-        </template>
-
-        {{-- 多值形态：预览网格 + 排序 --}}
-        <template x-if="multiple">
-            <div class="flex flex-wrap gap-2">
-                <template x-for="(value, index) in values" :key="value.path">
-                    <div class="relative">
-                        <img :src="thumbSrc(value)" class="w-24 rounded-lg border border-gray-200 object-cover dark:border-gray-700" :style="'aspect-ratio:' + ratio">
-                        <span class="absolute left-1 top-1 grid size-5 place-items-center rounded-full bg-gray-950/60 text-[10px] font-medium text-white" x-text="index + 1"></span>
-                        <div class="absolute inset-x-0 bottom-0 flex justify-center gap-0.5 rounded-b-lg bg-gray-950/60 py-0.5 opacity-0 transition hover:opacity-100">
-                            <button type="button" @click="move(index, -1)" title="{{ __('sn-media::media.picker.move_up') }}" class="grid size-5 place-items-center rounded text-white hover:bg-white/20">↑</button>
-                            <button type="button" @click="move(index, 1)" title="{{ __('sn-media::media.picker.move_down') }}" class="grid size-5 place-items-center rounded text-white hover:bg-white/20">↓</button>
-                            <button type="button" @click="removeAt(index)" title="{{ __('sn-media::media.picker.remove') }}" class="grid size-5 place-items-center rounded text-white hover:bg-white/20">×</button>
-                        </div>
-                    </div>
-                </template>
-                <button type="button" @click="open = true"
-                    class="grid w-24 place-items-center rounded-lg border-2 border-dashed border-gray-300 text-gray-400 transition hover:border-primary-400 hover:text-primary-500 dark:border-gray-600"
-                    :style="'aspect-ratio:' + ratio">
-                    <x-filament::icon :icon="Heroicon::OutlinedPlus" class="size-5" />
-                </button>
-            </div>
-        </template>
-
-        {{-- 选择弹窗（内容为 Picker Livewire 组件） --}}
-        <div x-show="open" x-cloak class="fixed inset-0 z-50 grid place-items-center bg-gray-950/60 p-4" @click.self="open = false">
-            <div class="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
-                <livewire:sn-media::components.picker
-                    :multiple="$props['multiple']"
-                    :accepted-mimes="$props['acceptedMimes']"
-                    :ratio="$props['ratio']"
-                    :state-path="$props['statePath']"
-                    :initial-values="$props['initialValues']"
-                    wire:key="sn-media-picker-{{ md5($props['statePath']) }}"
+{{-- 字段外壳交给 Filament 的包装器（label / helperText / 校验错误 / 可访问性都由它渲染），
+     这是官方文档里自定义字段的标准写法；不要自己拼 ob_start + wrapEmbeddedHtml（那是 @internal）。 --}}
+<x-dynamic-component :component="$getFieldWrapperView()" :field="$field" label-tag="div">
+    <div
+        x-load
+        x-load-src="{{ \Filament\Support\Facades\FilamentAsset::getAlpineComponentSrc('sn-media-picker-field', 'wsmallnews/media') }}"
+        x-data="snMediaPickerField({{ Js::from($props) }})"
+        x-on:sn-media-selected.window="onSelected($event.detail)"
+        x-on:sn-media-picker-closed.window="onClosed($event.detail)"
+        {{ $attributes->merge(['class' => 'sn-media-picker-field']) }}
+    >
+        {{-- 触发外观与预览层和 FilePicker 共用同一套组件（差别只有值的来源） --}}
+        <div wire:ignore>
+            <template x-if="! multiple">
+                <x-sn-media::filament.forms.media-field-single
+                    :width="$props['width']"
+                    :height="$props['height']"
+                    :image-preview="$props['imagePreview']"
+                    :preview-info="$props['previewInfo']"
+                    :trigger-icon="$getTriggerIcon()"
+                    :trigger-label="$getTriggerLabel()"
                 />
-            </div>
+            </template>
+
+            <template x-if="multiple">
+                @if ($props['itemsLayout'] === 'list')
+                    <x-sn-media::filament.forms.media-field-list
+                        :image-preview="$props['imagePreview']"
+                        :trigger-icon="$getTriggerIcon()"
+                        :trigger-label="$getTriggerLabel()"
+                    />
+                @else
+                    <x-sn-media::filament.forms.media-field-grid
+                        :width="$props['width']"
+                        :height="$props['height']"
+                        :image-preview="$props['imagePreview']"
+                        :trigger-icon="$getTriggerIcon()"
+                        :trigger-label="$getTriggerLabel()"
+                    />
+                @endif
+            </template>
         </div>
+
+        {{-- 弹层形态由字段自己决定（调用处 ->pickerDisplay() / ->pickerSlideOver() 覆盖，字段有默认值）：
+             居中（modal）或侧滑（slide-over + 左/右）。
+             sn-filament-modal-flush：去掉内容区自带 p-6（picker 自带工具栏与底栏，要贴边铺满）；
+             sn-filament-modal-fill ：仅居中形态需要——给窗口一个确定高度，素材区内部滚动，不出现双滚动条。 --}}
+        <x-filament::modal
+            :id="$props['modalId']"
+            :slide-over="$isSlideOver()"
+            :slide-over-position="$isSlideOver() ? $getSlideOverPosition() : null"
+            :width="$getPickerWidth()"
+            :heading="__('sn-media::media.picker.select')"
+            class="sn-filament-modal-flush {{ $isSlideOver() ? '' : 'sn-filament-modal-fill' }}"
+        >
+            <livewire:sn-media-filament::picker
+                :multiple="$props['multiple']"
+                :accepted-mimes="$props['acceptedMimes']"
+                :ratio="$props['ratio']"
+                :max-count="$props['maxCount'] ?? 0"
+                :view-mode="$props['viewMode']"
+                :sort-by="$props['sortBy']"
+                :file-directory="$props['directory']"
+                :state-path="$props['statePath']"
+                :field-id="$props['fieldId']"
+                :initial-values="$props['initialValues']"
+                wire:key="sn-media-picker-{{ $props['fieldId'] }}"
+            />
+        </x-filament::modal>
+
+        <x-sn-media::filament.forms.media-field-zoom :enabled="$props['imagePreview']" />
     </div>
-</div>
+</x-dynamic-component>

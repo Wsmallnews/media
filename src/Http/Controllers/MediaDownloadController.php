@@ -6,7 +6,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use Wsmallnews\Media\Models\Media;
 use Wsmallnews\Media\Support\Utils;
 
 /**
@@ -15,14 +14,20 @@ use Wsmallnews\Media\Support\Utils;
  */
 class MediaDownloadController extends Controller
 {
-    public function __invoke(Media $media): BinaryFileResponse | RedirectResponse
+    public function __invoke(int | string $media): BinaryFileResponse | RedirectResponse
     {
+        $query = Utils::getMediaModel()::query();
+        $teamId = request()->query('team_id');
+        abort_unless($teamId === null || is_string($teamId), 404);
+        Utils::scopeMediaQueryToTeam($query, $teamId);
+
+        $media = $query->findOrFail($media);
         $disk = Storage::disk($media->disk);
         $driver = config("filesystems.disks.{$media->disk}.driver");
 
-        if (in_array($driver, ['local', 'public'], true)) {
-            abort_unless($disk->exists($media->path), 404);
+        abort_unless($disk->exists($media->path), 404);
 
+        if (in_array($driver, ['local', 'public'], true)) {
             return response()->download($disk->path($media->path), $media->name);
         }
 
@@ -33,7 +38,7 @@ class MediaDownloadController extends Controller
                 'ResponseContentDisposition' => 'attachment; filename="' . rawurlencode($media->name) . '"',
             ]);
         } catch (\Throwable) {
-            $url = $disk->url($media->path);
+            abort(404);
         }
 
         return redirect()->away($url);

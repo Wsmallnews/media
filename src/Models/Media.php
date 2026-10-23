@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Wsmallnews\Media\Enums\MediaType;
 use Wsmallnews\Media\Support\MediaValue;
+use Wsmallnews\Media\Support\Utils;
 use Wsmallnews\Support\Models\SupportModel;
 use Wsmallnews\Support\Support\Utils as SupportUtils;
 
@@ -15,20 +16,22 @@ class Media extends SupportModel
 {
     protected $table = 'sn_media';
 
-    protected $guarded = [];
-
-    protected $casts = [
-        'size' => 'integer',
-        'width' => 'integer',
-        'height' => 'integer',
-    ];
+    protected $casts = [];
 
     /**
      * 按相对路径查记录（path 唯一索引）
      */
-    public static function findByPath(string $path): ?self
+    public static function findByPath(string $path, ?int $teamId = null): ?self
     {
-        return static::query()->where('path', $path)->first();
+        $query = static::query();
+
+        if ($teamId === null) {
+            $query->scopeTenant();
+        } else {
+            $query->where('team_id', $teamId);
+        }
+
+        return $query->where('path', $path)->first();
     }
 
     /**
@@ -70,6 +73,18 @@ class Media extends SupportModel
     }
 
     /**
+     * 人类可读的文件大小（1.2 MB）。
+     *
+     * 展示用的派生值，不是存储字段：`size` 本身仍是字节数（值对象 toValue() 也照旧给 int），
+     * 只是把「字节 → 可读」这一步从页面组件挪到模型上，任何拿到模型的地方（其他包、
+     * 导出、通知）都能直接用，不必依赖 media 的 Filament 组件，也不必自己再写一份换算。
+     */
+    protected function sizeForHumans(): Attribute
+    {
+        return Attribute::get(fn () => Utils::formatBytes((int) $this->size));
+    }
+
+    /**
      * 按逻辑目录筛选（含子孙目录的文件）
      *
      * @param  int|array<int, int>  $directoryIds
@@ -77,6 +92,28 @@ class Media extends SupportModel
     public function scopeInDirectories(Builder $query, int | array $directoryIds): Builder
     {
         return $query->whereIn('directory_id', (array) $directoryIds);
+    }
+
+    /**
+     * 按 mime 模式筛选（字段级约束：image/* 这类前缀，或 application/pdf 这类精确值）
+     *
+     * 只比对 mime 列：像 zip/docx 这类家族里存在 application/octet-stream 兜底，
+     * 若把 octet-stream 写进约束，这一层等于不过滤——真要按家族收窄，调用处
+     * 应该同时给 ext 条件（本 scope 不做，保持语义单一）。
+     *
+     * @param  array<int, string>  $patterns
+     */
+    public function scopeOfMimePatterns(Builder $query, array $patterns): Builder
+    {
+        return $query->where(function (Builder $q) use ($patterns) {
+            foreach ($patterns as $pattern) {
+                if (str_ends_with($pattern, '/*')) {
+                    $q->orWhere('mime', 'like', substr($pattern, 0, -1) . '%');
+                } else {
+                    $q->orWhere('mime', $pattern);
+                }
+            }
+        });
     }
 
     /**

@@ -1,6 +1,6 @@
 <?php
 
-namespace Wsmallnews\Media\Livewire\Components;
+namespace Wsmallnews\Media\Filament\Components;
 
 use Filament\Forms;
 use Illuminate\Database\Eloquent\Model;
@@ -34,11 +34,9 @@ class MediaDirectories extends SidebarNestedset
 
     protected function getRecordLabel(Model $record): HtmlString | string
     {
-        $count = $this->nodeCounts[$record->getKey()] ?? 0;
-
         return new HtmlString(
-            '<span class="min-w-0 truncate">' . e($record->name) . '</span>' .
-            ' <span class="text-xs tabular-nums text-gray-400">' . $count . '</span>'
+            '<span class="min-w-0 truncate">' . e($record->name) . '</span>'
+            . '<span class="sn-media-tree-count">' . ($this->nodeCounts[$record->getKey()] ?? 0) . '</span>'
         );
     }
 
@@ -58,6 +56,7 @@ class MediaDirectories extends SidebarNestedset
     protected function preloadNodeCounts(Collection $tree): void
     {
         $directCounts = Utils::getMediaModel()::query()
+            ->scopeTenant()
             ->whereNotNull('directory_id')
             ->toBase()
             ->selectRaw('directory_id, count(*) as c')

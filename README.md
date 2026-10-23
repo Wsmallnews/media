@@ -22,6 +22,7 @@ php artisan media:install
 ## 使用
 
 ```php
+use Wsmallnews\Media\Filament\Forms\FilePicker;
 use Wsmallnews\Media\Filament\Forms\MediaPicker;
 
 // 表单字段：单值（商品主图）
@@ -35,6 +36,9 @@ MediaPicker::make('banner')->ratio(3)->acceptImages()
 
 // 仅 PDF（证书）
 MediaPicker::make('certificate')->acceptedMimes(['application/pdf'])
+
+// 直接上传（不进素材库：文件落表单附件槽，随表单提交）
+FilePicker::make('proof')->directory('sn/shop/contracts')->acceptedMimes(['application/pdf'])
 ```
 
 ```blade
@@ -47,6 +51,12 @@ MediaPicker::make('certificate')->acceptedMimes(['application/pdf'])
 {{-- 老的纯路径字符串字段同样支持 --}}
 <img src="{{ media_url($options['icon_src'], 64) }}">
 ```
+
+## 素材库与演示页
+
+`MediaPlugin` 会把素材管理页注册进面板（导航分组等见 `config/sn-media.php` 的 `panel_register`）。
+
+包内另带一个官方演示页 `MediaDemo`（slug `media-demo`），把 `MediaPicker` / `FilePicker` 的全部能力摆在同一页，用来体验与抄写法。它不落任何业务表，默认**不注册**：把 `config/sn-media.php` 中 `panel_register.pages` 里的 `// MediaDemo::class,` 与文件顶部对应的 `use` 一起放开即可。
 
 ## License
 

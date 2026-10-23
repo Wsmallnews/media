@@ -12,6 +12,7 @@ use Livewire\Livewire;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Wsmallnews\Media\Commands\MediaInstallCommand;
+use Wsmallnews\Media\Support\LibraryCounts;
 use Wsmallnews\Media\Support\MediaManager;
 use Wsmallnews\Media\Support\Utils;
 use Wsmallnews\Support\Features\Modules\Module;
@@ -45,6 +46,9 @@ class MediaServiceProvider extends PackageServiceProvider
 
         // 上传管道（容器单例；不设 Facade，避免与 spatie Media 概念歧义）
         $this->app->singleton(MediaManager::class);
+
+        // 库级计数的请求内缓存：一个表单里的多个 picker 共享一次查询
+        $this->app->scoped(LibraryCounts::class);
     }
 
     public function packageBooted(): void
@@ -94,6 +98,11 @@ class MediaServiceProvider extends PackageServiceProvider
         Livewire::addNamespace(
             namespace: 'sn-media',
             classNamespace: 'Wsmallnews\\Media\\Livewire'
+        );
+
+        Livewire::addNamespace(
+            namespace: 'sn-media-filament',
+            classNamespace: 'Wsmallnews\\Media\\Filament\\Components'
         );
     }
 

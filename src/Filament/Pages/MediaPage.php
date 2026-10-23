@@ -19,9 +19,10 @@ use Livewire\Attributes\Url;
 use Livewire\WithFileUploads;
 use UnitEnum;
 use Wsmallnews\FilamentNestedset\Forms\Fields\KalnoyNestedsetSelectTree;
-use Wsmallnews\Media\Livewire\Concerns\InteractsWithMediaLibrary;
+use Wsmallnews\Media\Filament\Components\Concerns\InteractsWithMedia;
 use Wsmallnews\Media\Models\Media;
 use Wsmallnews\Media\Models\MediaDirectory;
+use Wsmallnews\Media\Support\MediaValue;
 use Wsmallnews\Media\Support\Utils;
 use Wsmallnews\Support\Filament\Concerns\CanBeConfigured;
 use Wsmallnews\Support\Filament\Pages\PageConfiguration;
@@ -30,7 +31,7 @@ final class MediaPage extends Page implements HasActions
 {
     use CanBeConfigured;
     use InteractsWithActions;
-    use InteractsWithMediaLibrary;
+    use InteractsWithMedia;
     use WithFileUploads;
 
     protected static ?string $configurationClass = PageConfiguration::class;
@@ -49,7 +50,7 @@ final class MediaPage extends Page implements HasActions
     #[Url]
     public string $sortBy = 'created_desc';
 
-    /** @var int|string 每页条数（'all' = 不分页） */
+    /** @var int|string Page size selected in the pagination component. */
     #[Url]
     public int | string $perPage = 12;
 
@@ -102,9 +103,11 @@ final class MediaPage extends Page implements HasActions
             ->label(__('sn-media::media.list.copy_path'))
             ->icon(Heroicon::OutlinedClipboardDocument)
             ->action(function (array $arguments): void {
-                $media = Utils::getMediaModel()::query()->find($arguments['id'] ?? 0);
+                $media = Utils::getMediaModel()::query()
+                    ->scopeTenant()
+                    ->find($arguments['id'] ?? 0);
                 if ($media) {
-                    $this->js("navigator.clipboard?.writeText('{$media->path}')");
+                    $this->js('navigator.clipboard?.writeText(' . Js::from($media->path) . ')');
                     Notification::make()->title(__('sn-media::media.notifications.path_copied'))->success()->send();
                 }
             });
@@ -122,7 +125,7 @@ final class MediaPage extends Page implements HasActions
                     ->searchable()
                     ->enableBranchNode()
                     ->withCount()
-                    ->query(fn () => MediaDirectory::query(), titleAttribute: 'name', parentAttribute: 'parent_id'),
+                    ->query(fn () => MediaDirectory::query()->scopeTenant(), titleAttribute: 'name', parentAttribute: 'parent_id'),
             ])
             ->action(function (array $arguments, array $data): void {
                 $ids = $arguments['ids'] ?? [$arguments['id'] ?? null];
@@ -160,7 +163,7 @@ final class MediaPage extends Page implements HasActions
                 ->icon(Heroicon::OutlinedArrowDownTray)
                 // 面板启用 SPA 后带 href 的动作会被 wire:navigate 拦截成 fetch（二进制内容直接渲染成文本），
                 // 这里改为 JS 导航：attachment 响应会原地触发浏览器下载，不离开当前页
-                ->alpineClickHandler('window.location.href = ' . Js::from(route('sn-media.download', ['media' => $media]))),
+                ->alpineClickHandler('window.location.href = ' . Js::from(MediaValue::make($media)->downloadUrl())),
             ($this->snMediaMoveAction)(['id' => $media->id]),
             ($this->snMediaDeleteAction)(['id' => $media->id]),
         ])
@@ -168,31 +171,11 @@ final class MediaPage extends Page implements HasActions
             ->icon(Heroicon::OutlinedEllipsisVertical)
             ->color('gray')
             ->tooltip(__('sn-media::media.list.more_actions'))
-            // 同目录树菜单：内容区滚动容器会裁剪内嵌面板，传送到 body 并右对齐
-            ->dropdownTeleport()
+            // 不要用 ->dropdownTeleport()：Filament 的 .teleport 修饰符只是把 x-float 的
+            // strategy 切成 fixed，并不会把面板真的移出 DOM。媒体页大量用 @container
+            // （container-type 会创建 fixed 的 containing block），fixed 坐标会被容器带偏，
+            // 菜单会跑到页面左上角、完全不跟 ⋯ 按钮。保持 absolute 策略才跟得住。
             ->dropdownPlacement('bottom-end');
-    }
-
-    /**
-     * 未归类文件数（左树"未归类"行的计数）
-     */
-    #[Computed]
-    public function uncategorizedCount(): int
-    {
-        return Utils::getMediaModel()::query()
-            ->where('team_id', $this->resolveTeamId())
-            ->whereNull('directory_id')
-            ->count();
-    }
-
-    public function updatedPerPage(): void
-    {
-        $this->resetPage();
-    }
-
-    public function setViewMode(string $mode): void
-    {
-        $this->viewMode = in_array($mode, ['grid', 'list'], true) ? $mode : 'grid';
     }
 
     /**
@@ -240,8 +223,18 @@ final class MediaPage extends Page implements HasActions
             return;
         }
 
-        Utils::getMediaModel()::query()->whereIn('id', $ids)->update(['directory_id' => $targetDirId]);
-        unset($this->medias, $this->libraryDirectories);
+        if ($targetDirId !== null) {
+            MediaDirectory::query()->scopeTenant()->findOrFail($targetDirId);
+        }
+
+        Utils::getMediaModel()::query()
+            ->scopeTenant()
+            ->whereIn('id', $ids)
+            ->update(['directory_id' => $targetDirId]);
+        unset($this->medias);
+
+        // 搬目录改了各目录的累计计数，左树（独立组件）需要自己重新取数
+        $this->dispatch('refresh-page');
         Notification::make()
             ->title(__('sn-media::media.notifications.moved', ['count' => count($ids)]))
             ->success()
@@ -260,12 +253,18 @@ final class MediaPage extends Page implements HasActions
             return;
         }
 
-        $count = Utils::getMediaModel()::query()->whereIn('id', $ids)->delete();
+        $count = Utils::getMediaModel()::query()
+            ->scopeTenant()
+            ->whereIn('id', $ids)
+            ->delete();
 
         if ($this->previewId && in_array($this->previewId, $ids, true)) {
-            $this->previewId = null;
+            $this->clearPreview();
         }
-        unset($this->medias, $this->libraryDirectories);
+        unset($this->medias);
+
+        // 删除同样影响各目录的累计计数
+        $this->dispatch('refresh-page');
 
         Notification::make()
             ->title(__('sn-media::media.notifications.deleted', ['count' => $count]))
@@ -278,7 +277,9 @@ final class MediaPage extends Page implements HasActions
 
     public function openPreview(int $id): void
     {
-        $media = Utils::getMediaModel()::query()->find($id);
+        $media = Utils::getMediaModel()::query()
+            ->scopeTenant()
+            ->find($id);
         if (! $media) {
             return;
         }
@@ -286,11 +287,19 @@ final class MediaPage extends Page implements HasActions
         $this->previewId = $id;
         $this->metaName = $media->name;
         $this->metaAlt = (string) $media->alt;
+        $this->dispatch('open-modal', id: 'sn-media-preview');
     }
 
     public function saveMeta(): void
     {
-        $media = $this->previewId ? Utils::getMediaModel()::query()->find($this->previewId) : null;
+        $this->validate([
+            'metaName' => ['nullable', 'string', 'max:255'],
+            'metaAlt' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $media = $this->previewId
+            ? Utils::getMediaModel()::query()->scopeTenant()->find($this->previewId)
+            : null;
         if (! $media) {
             return;
         }
@@ -307,12 +316,15 @@ final class MediaPage extends Page implements HasActions
     public function clearPreview(): void
     {
         $this->previewId = null;
+        $this->dispatch('close-modal', id: 'sn-media-preview');
     }
 
     #[Computed]
-    public function previewMedia()
+    public function previewMedia(): ?Media
     {
-        return $this->previewId ? Utils::getMediaModel()::query()->find($this->previewId) : null;
+        return $this->previewId
+            ? Utils::getMediaModel()::query()->scopeTenant()->with('directory')->find($this->previewId)
+            : null;
     }
 
     // ============ 列表 ============
@@ -320,21 +332,8 @@ final class MediaPage extends Page implements HasActions
     #[Computed]
     public function medias()
     {
-        return $this->applySort($this->mediaQuery(), $this->sortBy)->paginate(is_numeric($this->perPage) ? (int) $this->perPage : 24);
-    }
-
-    public function getFileSize(int $bytes): string
-    {
-        if ($bytes < 1024) {
-            return $bytes . ' B';
-        }
-        if ($bytes < 1048576) {
-            return round($bytes / 1024, 1) . ' KB';
-        }
-        if ($bytes < 1073741824) {
-            return round($bytes / 1048576, 1) . ' MB';
-        }
-
-        return round($bytes / 1073741824, 2) . ' GB';
+        return $this->mediaQuery()
+            ->with('directory')
+            ->paginate($this->resolvePerPage($this->perPage));
     }
 }

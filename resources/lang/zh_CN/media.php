@@ -16,7 +16,9 @@ return [
     'toolbar' => [
         'upload' => '上传',
         'search_placeholder' => '搜索文件名',
+        'breadcrumb' => '当前位置',
         'sort' => [
+            'label' => '排序方式',
             'created_desc' => '最新上传',
             'created_asc' => '最早上传',
             'name_asc' => '文件名 A→Z',
@@ -35,7 +37,6 @@ return [
         'all' => '全部文件',
         'uncategorized' => '未归类',
         'empty' => '暂无目录',
-        'tree_hint' => '目录是逻辑归类（最多 3 级），移动文件不改物理路径。物理存储统一 sn/{日期}/{hash}.{ext}。',
     ],
 
     'list' => [
@@ -46,6 +47,8 @@ return [
         'actions' => '操作',
         'empty_heading' => '暂无素材',
         'empty' => '此目录暂无素材，拖拽文件到此处上传',
+        'empty_filtered_heading' => '没有符合条件的素材',
+        'empty_filtered' => '当前目录 / 类型 / 关键词组合下没有素材，换个条件或清除筛选再试',
         'selected_count' => '已选 :count 项',
         'selected_prefix' => '已选',
         'select_all_page' => '全选当页',
@@ -116,25 +119,23 @@ return [
 
     'picker' => [
         'select' => '选择素材',
-        'empty_heading' => '没有符合条件的素材',
-        'empty' => '没有符合条件的素材，可搜索 / 切目录，或点右上「上传」',
+        'empty_heading' => '素材库还是空的',
+        'empty' => '还没有任何素材，点右上「上传」添加',
+        'empty_filtered_heading' => '没有符合条件的素材',
+        'empty_filtered' => '当前目录 / 类型 / 关键词组合下没有素材，换个条件或清除筛选再试',
         'selected_count' => '已选 :count 个',
         'selected_prefix' => '已选',
         'single_mode' => '单选模式',
         'multiple_mode' => '多选模式',
         'cancel' => '取消',
         'confirm' => '确定',
-        'trigger_select' => '选择图片',
-        'trigger_add' => '添加',
+        'trigger' => '选择文件',
         'replace' => '替换',
         'remove' => '移除',
-        'move_up' => '上移',
-        'move_down' => '下移',
-    ],
-
-    'file_picker' => [
-        'trigger' => '选择文件（不进素材库）',
-        'replace' => '重新选择',
+        'preview' => '预览',
+        'close_preview' => '关闭预览',
+        'remaining' => '还可选 :count 张',
+        'limit_reached' => '已达上限 :max 张',
     ],
 
     'types' => [

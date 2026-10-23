@@ -3,19 +3,17 @@
 namespace Wsmallnews\Media\Support;
 
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Wsmallnews\Media\Models\Media;
 
 /**
  * 附件值 presenter：统一渲染入口。
  *
  * 接受三种形态：值对象数组（字段保存值）、相对路径字符串（老字段 / 快照）、Media 模型。
- * string 形态按 path 唯一索引反查素材表补齐元数据（请求级缓存，反查不到则最小信息降级）。
+ * string 形态按 path 唯一索引反查素材表补齐元数据，反查不到则最小信息降级。
  */
 class MediaValue
 {
-    /** @var array<string, Media|null> path => model 请求级缓存 */
-    protected static array $pathCache = [];
-
     protected ?array $value = null;
 
     protected ?Media $model = null;
@@ -26,12 +24,12 @@ class MediaValue
             $this->model = $value;
             $this->value = $value->toValue();
         } elseif (is_string($value) && $value !== '') {
-            $this->model = static::findByPathCached($value);
+            $this->model = static::findByPath($value);
             $this->value = $this->model?->toValue() ?? ['path' => $value];
         } elseif (is_array($value) && ($value['path'] ?? null)) {
             $this->value = $value;
-            // 值对象缺的键（alt/disk 等）回落素材记录，按 path 补挂模型（请求级缓存）
-            $this->model = static::findByPathCached((string) $value['path']);
+            // Value objects omit fields such as alt and disk, so recover those from the media record.
+            $this->model = static::findByPath((string) $value['path']);
         }
     }
 
@@ -64,7 +62,18 @@ class MediaValue
         $disk = $this->model?->disk ?: Utils::getDisk();
 
         if (! $this->diskServesDirectly($disk)) {
-            return route('sn-media.file', ['path' => $path]);
+            if (! $this->model) {
+                return null;
+            }
+
+            return URL::temporarySignedRoute(
+                'sn-media.file',
+                now()->addMinutes((int) Utils::getConfig('preview_url_ttl', 10)),
+                [
+                    'path' => $path,
+                    'team_id' => $this->model->team_id ?? 'global',
+                ],
+            );
         }
 
         $url = Storage::disk($disk)->url($path);
@@ -88,13 +97,7 @@ class MediaValue
             return true;
         }
 
-        $driver = $config['driver'] ?? 'local';
-
-        if (in_array($driver, ['local', 'public'], true)) {
-            return $driver === 'public' || ($config['visibility'] ?? 'private') === 'public';
-        }
-
-        return true;
+        return Utils::getDiskVisibility($disk) === 'public';
     }
 
     /**
@@ -103,7 +106,14 @@ class MediaValue
     public function downloadUrl(): ?string
     {
         if ($this->model) {
-            return route('sn-media.download', ['media' => $this->model]);
+            return URL::temporarySignedRoute(
+                'sn-media.download',
+                now()->addMinutes((int) Utils::getConfig('download_url_ttl', 10)),
+                [
+                    'media' => $this->model,
+                    'team_id' => $this->model->team_id ?? 'global',
+                ],
+            );
         }
 
         return $this->url();
@@ -136,12 +146,10 @@ class MediaValue
         return is_array($provider) ? ($provider['resize'] ?? null) : null;
     }
 
-    protected static function findByPathCached(string $path): ?Media
+    protected static function findByPath(string $path): ?Media
     {
-        if (! array_key_exists($path, static::$pathCache)) {
-            static::$pathCache[$path] = Media::findByPath($path);
-        }
+        $modelClass = Utils::getMediaModel();
 
-        return static::$pathCache[$path];
+        return $modelClass::findByPath($path);
     }
 }

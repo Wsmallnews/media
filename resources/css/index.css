@@ -1,2 +1,134 @@
 /* sn-media 包样式：视图工具类由 Tailwind v4 扫描 ../views 生成，随框架层 css @import 编译 */
 @source '../views/**/*';
+
+/*
+ * 本包对 Filament 组件的覆盖：集中在这里，视图里只留语义类名。
+ *
+ * 为什么用自定义 class 而不是在组件标签上堆 !important：
+ * - 组件标签上一长串 !flex !p-2 !font-normal !shadow-none 既难读，又会在 Filament 升级时逐个失效；
+ * - 这里的规则是无 layer 的普通 CSS，优先级高于 tailwind 的 utilities 层，
+ *   所以不需要 !important 就能盖住 .fi-btn 的默认版式。
+ *
+ * 瓦片/行的 hover 与聚焦环也收在这里（静态交互，不需要 Alpine 参与），视图里只剩
+ * 「选中态」一个动态类：x-bind:class="isSelected(id) ? 'sn-ring-selected' : ''"。
+ *
+ * 通用型（紧凑输入、弹层贴合、选中环等）一律在 support 的 sn-filament-* / sn-* 里，不在这里重复。
+ */
+
+/* 瓦片：x-filament::button 当容器用（组件给主题/圆角/焦点环，版式在这里） */
+.sn-media-tile {
+    @apply flex w-full cursor-pointer flex-col items-center gap-1.5 rounded-lg p-2 text-left font-normal;
+    @apply shadow-none ring-0;
+
+    /* hover 是静态交互态，放 CSS 里就不用在每个 item 上写 hover:!bg-* 了 */
+    &:hover {
+        @apply bg-gray-50 dark:bg-gray-800;
+    }
+
+    /* 焦点环与选中环同一套语义（主色），特异性高于上面的 ring-0，不需要 ! */
+    &:focus-visible {
+        @apply ring-2 ring-primary-500;
+    }
+}
+
+/* 详细信息行（picker 弹层）：button 自己当行容器，横向排布。
+   w-full 不能省：父级是 block 容器（space-y-*），flex-1 在 block 里不生效，
+   而 x-filament::button 默认 inline-flex，名字短的行会缩成半行。 */
+.sn-media-row {
+    @apply flex w-full min-w-0 cursor-pointer items-center justify-start gap-3 rounded-lg px-2 py-1.5 text-left font-normal;
+    @apply shadow-none ring-0;
+
+    &:hover {
+        @apply bg-gray-50 dark:bg-gray-800;
+    }
+
+    &:focus-visible {
+        @apply ring-2 ring-primary-500;
+    }
+}
+
+/* 详细信息行的外壳（管理页）：右侧还有 ⋯ 菜单，菜单不能放进 <button>（交互元素嵌套非法），
+   所以让外壳承担 hover / 选中环 / 焦点环，选中框才能覆盖整行（含操作列）。 */
+.sn-media-row-shell {
+    @apply flex w-full min-w-0 items-center gap-3 rounded-lg px-2 py-1.5;
+
+    &:hover {
+        @apply bg-gray-50 dark:bg-gray-800;
+    }
+
+    &:focus-within {
+        @apply ring-2 ring-primary-500;
+    }
+}
+
+/* 列表行选中态：环画在行内（inset），不向外扩。
+   行距只有 2px，向外扩的 ring 会被上下相邻行各吃 2px，多选时连成一条 4px 粗线，
+   像一整块表格；inset 后缝隙保持干净，hover 的背景块也不受影响。
+   特异性写成 .a.b（0,2,0）与上面的 :hover（0,2,0）持平，放在其后才能压住 hover 的灰底。 */
+.sn-media-row-shell.sn-ring-selected-inset {
+    @apply bg-primary-50 ring-2 ring-inset ring-primary-500;
+}
+
+.dark .sn-media-row-shell.sn-ring-selected-inset {
+    @apply bg-primary-500/10 ring-primary-400;
+}
+
+/* picker 弹层的列表行同理：行距 2px + 外扩 ring 一样会粘连 */
+.sn-media-row.sn-ring-selected-inset {
+    @apply bg-primary-50 ring-2 ring-inset ring-primary-500;
+}
+
+.dark .sn-media-row.sn-ring-selected-inset {
+    @apply bg-primary-500/10 ring-primary-400;
+}
+
+/* 外壳里的主点击区：铺满剩余宽度，视觉（背景/内边距/圆角/环）全部交还给外壳 */
+.sn-media-row-hit {
+    @apply flex min-w-0 flex-1 cursor-pointer items-center justify-start gap-3 bg-transparent p-0 text-left font-normal;
+    @apply shadow-none ring-0;
+
+    &:focus-visible {
+        @apply ring-0;
+    }
+}
+
+/* 类型筛选 chips：比默认 sm 按钮再小一档，胶囊形 */
+.sn-media-chip {
+    @apply rounded-full px-2.5 py-1 text-xs;
+}
+
+/* 视图切换（分段按钮）：外框由模板的 .fi-btn-group 定成 h-8 p-px（32 = 输入框基准盒），
+   这里只补两件 p-px 带来的一致性——
+   1) 子项靠 grid 行高 stretch 填满内容盒（30），不需要也不该再各自写 h-8（会和 30 的内容盒打架溢出）；
+   2) 子项圆角比外框小 1px，贴合 1px 内缩，否则 8px 圆角在外缩 1px 的位置会露出小豁口。
+   特异性能压过 .fi-btn-group > .fi-btn 系列（0,2,1）：这里是 0,3,1，且不在 tailwind 的 layer 里。 */
+.sn-media-view-toggle .fi-btn-group > .fi-btn {
+    @apply h-full;
+}
+
+.sn-media-view-toggle .fi-btn-group > .fi-btn:nth-child(1 of .fi-btn) {
+    border-start-start-radius: calc(var(--radius-lg) - 1px);
+    border-end-start-radius: calc(var(--radius-lg) - 1px);
+}
+
+.sn-media-view-toggle .fi-btn-group > .fi-btn:nth-last-child(1 of .fi-btn) {
+    border-start-end-radius: calc(var(--radius-lg) - 1px);
+    border-end-end-radius: calc(var(--radius-lg) - 1px);
+}
+
+/* 目录树行的名称侧计数（目录节点，以及「全部 / 未归类」两行）：
+   行容器与名称元素的排版由 filament-nestedset 的 .sn-nestedset-row / -label 提供，
+   名称里放什么、怎么排是宿主自己的事，所以计数样式落在本包。 */
+.sn-media-tree-count {
+    @apply text-xs tabular-nums text-gray-400;
+}
+
+/* 目录树行操作菜单（⋯）：
+   - 侧栏是 overflow 滚动容器，面板宽度必须 ≤ 侧栏宽度（224px / 14rem），
+     否则浮动中间件会把它推到容器外、被裁掉；
+   - 位置由 SidebarNestedset 关掉 teleport 后按 absolute 计算，侧栏已加 relative。
+   11rem 足够放下「创建子节点 / 编辑 / 删除」三条。 */
+[data-sidebar-row] .fi-dropdown-panel {
+    width: 11rem;
+    max-width: 11rem;
+}
