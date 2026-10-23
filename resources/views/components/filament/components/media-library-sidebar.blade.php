@@ -9,13 +9,9 @@ use Filament\Support\Icons\Heroicon;
 @endphp
 
 {{--
-    素材库左侧栏：目录树外壳 + 「全部 / 未归类」两行（素材管理页与选择弹窗共用）。
-
-    整个 aside 一起抽，是因为两处除了数据之外没有任何差异。选中态走服务端 active-id
-    （media-directories 的 $activeId 是 #[Reactive]），组件内不再保留前端镜像。
-
-    自定义条目走默认 slot（sidebar-nestedset-content 里的 {{ $slot }} 位置），
-    触发器走命名 slot mobileTrigger。
+    Media library sidebar: directory tree shell plus the All / Uncategorized rows.
+    Shared by the page and the picker modal; selection is server-driven via active-id,
+    so no client-side mirror is kept.
 --}}
 
 <aside class="contents @3xl:flex @3xl:w-56 @3xl:shrink-0 @3xl:flex-col @3xl:overflow-y-auto @3xl:border-r @3xl:border-gray-200 dark:@3xl:border-gray-700 [scrollbar-gutter:stable] @3xl:relative">

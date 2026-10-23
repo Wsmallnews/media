@@ -7,25 +7,16 @@
 @endphp
 
 {{--
-    素材选择弹窗内容（面板语境，视图落 views/filament/components）。
-
-    高度：不写死高度，由弹层形态决定——
-    - 居中 modal：外层 .sn-filament-modal-fill 给窗口一个固定高度，本组件 min-h-0 flex-1 铺满，
-      素材多时只有素材区滚动（换页/切视图窗口不跳）；
-    - 侧滑 slide-over：窗口本身 h-dvh，本组件铺满整高，天然没有双滚动条。
-
-    选中态：**纯前端**。勾选/取消/确认都在 Alpine 本地数组里完成，不往返后端——
-    每点一次都发请求会让弹层出现 loading 抖动，本地站点尤其明显。服务端只在首次渲染时
-    把「初始选中 id」换成值对象 + 预览地址（selectionEntries）一次性下发，之后翻页、
-    切目录都不需要再问后端要这批数据。上传完成走 sn-media-uploaded 事件把新素材并进来。
-
-    断点说明：@container 声明在根元素，工具栏与主体（含目录树）都用容器查询；
-    目录树组件（sn-filament-nestedset）的「桌面树 / 抽屉」也走容器查询（默认 @md），
-    两者同源，不会出现「树按视口、容器按宽度」的错配带。
+    Media picker modal body.
+    Height is left to the shell: the centered modal pins a window height so only the media
+    area scrolls, the slide-over is h-dvh and needs no second scrollbar.
+    Selection is front-end only — a round-trip per click makes the modal flicker; the server
+    ships initial entries once via selectionEntries.
+    @container sits on the root so toolbar, body and tree share one query context.
 --}}
 <div
     class="@container flex min-h-0 min-w-0 flex-1 flex-col"
-    {{-- key 必须跟字段侧同源自 $fieldId（md5(statePath) 会让同状态路径的不同宿主撞 key） --}}
+    {{-- Key must be sourced from $fieldId like the field side; md5(statePath) collides across hosts sharing a state path. --}}
     wire:key="sn-media-picker-{{ $fieldId }}"
     x-load
     x-load-src="{{ \Filament\Support\Facades\FilamentAsset::getAlpineComponentSrc('sn-media-manager', 'wsmallnews/media') }}"
@@ -34,13 +25,13 @@
         'rejectedLabel' => __('sn-media::media.notifications.upload_rejected_default'),
         'tooLargeLabel' => __('sn-media::media.notifications.upload_too_large', ['name' => '__NAME__', 'max' => '__MAX__']),
         'maxUploadKb' => $this->maxUploadKb(),
-        // 本地选中态的种子：初始选中 id（有序）+ id => {value, url}
+        // Seed of the local selection: ordered ids, plus id => {value, url}.
         'multiple' => $multiple,
         'statePath' => $statePath,
         'fieldId' => $fieldId,
         'selection' => array_values($selection),
         'entries' => $this->selectionEntries,
-        // 0 = 不限；否则前端按「还能选几张」拦截勾选
+        // 0 = unlimited; otherwise the client caps toggles by the remaining slots.
         'maxCount' => $maxCount,
         'remainingLabel' => __('sn-media::media.picker.remaining', ['count' => '__COUNT__']),
         'limitLabel' => __('sn-media::media.picker.limit_reached', ['max' => '__MAX__']),
@@ -75,8 +66,7 @@
     </x-sn-media::filament.components.media-library-toolbar>
 
     <div class="flex min-h-0 min-w-0 flex-1 flex-col @3xl:flex-row">
-        {{-- 左侧：与素材管理页完全同一个 media-library-sidebar（aside 外壳、触发器、
-             自定义条目、计数都在组件里）；选中态走服务端 active-id，不冻结 DOM。 --}}
+        {{-- The very same sidebar as the media page; selection is server-driven via active-id. --}}
         <x-sn-media::filament.components.media-library-sidebar
             :active-dir="$libraryDir"
             :all-count="$this->typeCounts['all'] ?? 0"
@@ -99,7 +89,7 @@
                 </div>
 
                 @if ($medias->count() === 0)
-                    {{-- 空态分两种：库里没素材 vs 筛选没结果（混用会让人以为库是空的） --}}
+                    {{-- Two empty states: empty library vs. no filter match; mixing them reads as an empty library. --}}
                     @if ($this->hasActiveLibraryFilter())
                         <x-filament::empty-state
                             :contained="false"
@@ -119,8 +109,8 @@
                     @endif
                 @else
                     @if ($viewMode === 'list')
-                        {{-- 列表视图与管理页同源：单列行式，点击即切换选中（纯前端，不发请求）。
-                             次要列（目录 / 日期 / 大小）按容器宽度逐级收起，窄容器只留名称 + 类型。 --}}
+                        {{-- Same row layout as the media page; toggling stays front-end, no request.
+                             Secondary columns collapse as the container narrows. --}}
                         <div class="space-y-0.5">
                             @foreach ($medias as $media)
                                 <x-filament::button
@@ -183,12 +173,12 @@
                 @endif
             </div>
 
-            {{-- 上传进度（与素材管理页、FilePicker 共用同一个组件） --}}
+            {{-- Upload progress, shared with the media page and the FilePicker. --}}
             <x-sn-media::filament.components.upload-progress />
         </div>
     </div>
 
-    {{-- 分页独立一栏（与素材管理页完全一致：同一组件、同一候选值、同一栏样式）。 --}}
+    {{-- Pagination in its own bar, identical to the media page. --}}
     @if ($medias->hasPages())
         <div class="border-t border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50">
             <x-filament::pagination

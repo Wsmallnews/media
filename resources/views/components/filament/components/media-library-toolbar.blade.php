@@ -50,14 +50,14 @@
         @endif
     </nav>
 
-    {{-- 追加动作（选择弹窗的上传/关闭）：窄容器跟面包屑同行且居右，宽容器落在视图切换前 --}}
+    {{-- Picker extras (upload / close); reordered per container width. --}}
     @if (filled(trim((string) $slot)))
         <div class="order-2 flex shrink-0 items-center gap-2 @3xl:order-4">
             {{ $slot }}
         </div>
     @endif
 
-    {{-- 视图切换：宽屏落到最右（order-5），窄屏紧跟面包屑与追加动作（order-3），选中项用 primary 填充 --}}
+    {{-- View toggle; the active mode is filled with primary. --}}
     @if ($showViewToggle)
         <div class="sn-media-view-toggle order-3 shrink-0 @3xl:order-5">
             <x-filament::button.group class="h-8 p-px">
@@ -83,7 +83,7 @@
         </div>
     @endif
 
-    {{-- 排序：选项由 trait 的 sortOptions() 统一供给 --}}
+    {{-- Sort options are supplied by the trait's sortOptions(). --}}
     @if ($showSort)
         <div class="order-4 basis-full @3xl:order-2 @3xl:basis-auto @3xl:w-44">
             <x-filament::input.wrapper class="sn-filament-input-sm">
@@ -99,7 +99,7 @@
         </div>
     @endif
 
-    {{-- 搜索：inline-prefix（Filament 原生，无图标分隔线与底色块）--}}
+    {{-- inline-prefix renders the icon without Filament's divider or background block. --}}
     <div class="order-5 basis-full @3xl:order-3 @3xl:basis-auto @3xl:w-52">
         <x-filament::input.wrapper inline-prefix :prefix-icon="Heroicon::OutlinedMagnifyingGlass" class="sn-filament-input-sm">
             <x-filament::input

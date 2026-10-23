@@ -1,14 +1,9 @@
 {{--
-    字段主体的「多值列表」形态：一行一条（拖拽手柄 · 缩略图 · 名称/尺寸·大小·类型 · 序号 · 放大/移除），
-    底部是虚线「添加」。一行一条才像列表，所以窄屏满宽、宽屏限宽。
-
-    调用方需用 <template x-if="multiple"> 包住本组件（Alpine 的 x-if 要求单个根元素，本组件根是下方 div）。
-    itemsLayout('list') 时用它，'grid' 时用 media-field-grid。
-
-    要求调用方的 Alpine 对象提供：
-    values / openPicker() / removeAt(index) / openPreview(value) / isFull() /
-    dragStart(i) / dragOver(i) / dragEnd() / dragIndex /
-    isImageValue(v) / extLabel(v) / itemMeta(v) / thumbSrc(v)
+    Multi-value list body: one row per value (handle, thumb, name/meta, index, zoom / remove)
+    plus a dashed add row at the bottom.
+    The caller must wrap it in <template x-if="multiple"> (Alpine x-if needs a single root).
+    Expects values / openPicker() / removeAt(index) / openPreview(value) / isFull() /
+    dragStart / dragOver / dragEnd / dragIndex / isImageValue / extLabel / itemMeta / thumbSrc
 --}}
 @props([
     'imagePreview' => false,

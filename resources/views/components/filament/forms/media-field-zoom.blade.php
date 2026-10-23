@@ -1,13 +1,8 @@
 {{--
-    字段的放大预览层（->imagePreview(false) 时整段不渲染）。
-
-    做成独立组件而不是塞进主体里：它是叠在最上层的浮层，与「字段主体长什么样」无关，
-    任何展示 thumbSrc(value) 的地方都能直接引。
-
-    teleport 到 body：避免被表单容器的层叠上下文/裁剪影响；点背景或 Esc 关闭。
-
-    要求调用方的 Alpine 对象提供：
-    previewing（当前预览的值对象或 null）/ closePreview() / thumbSrc(v)
+    Full-screen preview layer; nothing is rendered when imagePreview(false).
+    Kept separate because it is an overlay unrelated to the field body and is reusable anywhere
+    thumbSrc(value) exists. Teleported to body to escape the form's stacking and clipping context.
+    Expects previewing / closePreview() / thumbSrc(v).
 --}}
 @props([
     'enabled' => false,

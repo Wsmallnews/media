@@ -1,12 +1,8 @@
 {{--
-    字段主体的「单值」形态：有值时是预览（缩略图 / 扩展名 + 文件名 / 尺寸·大小·类型 / 路径 / 替换·移除），
-    无值时是虚线触发器。多值走 media-field-grid / media-field-list。
-
-    调用方需用 <template x-if="! multiple"> 包住本组件（Alpine 的 x-if 要求单个根元素，本组件根是下方 div）。
-
-    要求调用方的 Alpine 对象提供：
-    values / openPicker() / removeSingle() / openPreview(value) /
-    isImageValue(v) / extLabel(v) / valueMeta(v) / thumbSrc(v) / isFull()
+    Single-value body: preview with meta when a value is set, dashed trigger otherwise.
+    The caller must wrap it in <template x-if="! multiple"> (Alpine x-if needs a single root).
+    Expects values / openPicker() / removeSingle() / openPreview(value) /
+    isImageValue / extLabel / valueMeta / thumbSrc / isFull()
 --}}
 @props([
     'width' => 144,
@@ -25,7 +21,7 @@
 <div>
     <template x-if="values">
         <div class="flex items-start gap-3">
-            {{-- 尺寸走内联样式：调用处传 px，避免动态 Tailwind 类（JIT 生成不了） --}}
+            {{-- Inline size: width/height are runtime props, and dynamic Tailwind classes would not be JIT-compiled. --}}
             <div class="group relative shrink-0 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700" style="width: {{ $width }}px; height: {{ $height }}px">
                 <template x-if="isImageValue(values)">
                     <img :src="thumbSrc(values)" class="size-full object-cover" alt="">
@@ -36,7 +32,6 @@
                     </div>
                 </template>
 
-                {{-- 放大镜 / 移除：底部满宽半透明黑条，图标居中、白色，悬停才出现 --}}
                 @if ($imagePreview || ! $previewInfo)
                     <div class="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-gray-950/60 py-0.5 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
                         @if ($imagePreview)
@@ -54,7 +49,7 @@
                         @endif
 
                         @unless ($previewInfo)
-                            {{-- 不显示文件信息时只留移除：替换 = 移除后重新点空触发器 --}}
+                            {{-- No file info means only remove; replacing equals remove then click the empty trigger. --}}
                             <x-filament::icon-button
                                 type="button"
                                 :icon="Heroicon::OutlinedXMark"

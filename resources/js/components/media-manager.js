@@ -1,16 +1,16 @@
 /**
- * 素材管理页 / 素材选择弹窗本地交互态（Alpine 资产组件，经 Filament 资产管线注册）：
- * 累积多选（+ 全选当页）、拖拽上传、上传进度（进度回调，不再是 DOM 事件）、
- * 上传前客户端大小预检（服务端三层最小值经 maxUploadKb 下发），
- * 以及选择弹窗的「本地选中态」（勾选不再往返后端）。
- * 业务操作（移动/删除/预览）走 Filament Action（mountAction）或 wire:click，本地只承载纯展示态。
+ * Media page and picker local interaction state (Alpine asset component).
+ * Covers cumulative multi-select (+ select page), drag upload, progress via callbacks, a
+ * client-side size pre-check (maxUploadKb is the min of the three server limits) and the picker's
+ * local selection, which never round-trips. Business operations go through Filament Actions or
+ * wire:click; this object only holds display state.
  */
 import { uploadProgress } from '../support/upload-progress.js';
 
 export default function snMediaManager(props = {}) {
     return {
-        // 上传进度/失败状态（与 FilePicker 同一份实现，见 support/upload-progress.js）
-        // 上限与「超限」文案也在共享辅助里（素材页 / 弹窗 / 字段三处同源）
+        // Upload progress / failure state shared with FilePicker (see support/upload-progress.js);
+        // the limits and the "too large" copy live there too, keeping all three entry points in sync.
         ...uploadProgress({
             label: props.uploadingLabel,
             rejectedLabel: props.rejectedLabel,
@@ -21,17 +21,17 @@ export default function snMediaManager(props = {}) {
         selected: [],
         dragOver: false,
 
-        // ===== 选择弹窗的本地选中态（props 里带 statePath 才生效；管理页用上面的 selected） =====
+        // Picker local selection; only active when props carry statePath (the page uses `selected`).
         pickerMultiple: false,
         pickerStatePath: '',
         pickerFieldId: '',
-        /** 有序的素材 id（数组序即保存顺序）。反查不到 id 的旧值用 `path:xxx` 虚拟 key 占位 */
+        /** Ordered media ids; the array order is the save order. Values without a matching id use a `path:xxx` virtual key. */
         pickerSelection: [],
-        /** id => { value, url }：翻页后仍能凭 id 拼出完整值对象 */
+        /** id => { value, url }: keeps full value objects available after pagination. */
         pickerEntries: {},
-        /** path => url：给「反查不到 id」的虚拟条目补预览地址 */
+        /** path => url: preview address for the virtual entries that carry no id. */
         pickerUrls: {},
-        /** 本字段还能选几张（0 = 不限） */
+        /** Remaining slots for this field, 0 = unlimited. */
         pickerMax: 0,
         pickerRemainingLabel: '',
         pickerLimitTpl: '',
@@ -47,11 +47,12 @@ export default function snMediaManager(props = {}) {
             this.pickerLimitTpl = props.limitLabel || '';
         },
 
-        // ===== 上传前预检 + 手动提交（绕过 wire:model 的自动上传，超限文件在客户端拦截） =====
+        // Size pre-check + manual submit: bypasses wire:model auto-upload so oversized files are
+        // stopped on the client.
 
         /**
-         * 交给 Livewire 上传：进度与失败只能靠回调拿（见 support/upload-progress.js）。
-         * 服务端 `updatedUploads()` 负责落库、刷新列表与结果通知。
+         * Hands files to Livewire. Progress and failure only arrive through the callbacks
+         * (see support/upload-progress.js); the server's `updatedUploads()` persists and notifies.
          */
         submitFiles(files) {
             if (! files.length) {
@@ -72,23 +73,18 @@ export default function snMediaManager(props = {}) {
         onFilePick(event) {
             const picked = Array.from(event.target.files || []);
 
-            // 重置 input，保证同名文件可重复选择
+            // Reset the input so picking the same file again still fires change.
             event.target.value = '';
 
             this.submitFiles(this.filterOversized(picked));
         },
 
-        // ===== 选择弹窗：勾选/取消/确认全部在本地完成，不发请求 =====
+        // Picker: select / deselect / confirm all happen locally, no requests.
 
         /**
-         * 打开弹层时用字段当前值重建选中态（字段侧 openPicker 派发 sn-media-picker-open）。
-         *
-         * 为什么每次打开都要重建：Picker 是常驻的 Livewire 组件（wire:key 固定、
-         * modal 只切 display），mount() 只跑一次，pickerSelection 不会跟着字段的
-         * 移除 / 替换更新 —— 不同步就重开，被删掉的那张仍是勾选态，直接确认会把它复活。
-         *
-         * 额度：重建后的数组长度就是「已选张数」，包含当前页看不见的那些（跨页已选），
-         * 所以剩余张数不需要额外的计数器；用户看到的勾选数少于一屏时，额度依然是准的。
+         * Rebuilds the selection on every open. The picker is a persistent Livewire component
+         * (mount() runs once), so otherwise a removed value stays checked and is revived on
+         * confirm. The array length is the cross-page count, so slots need no extra counter.
          */
         syncPickerSelection(detail) {
             if (!detail || detail.statePath !== this.pickerStatePath || detail.fieldId !== this.pickerFieldId) {
@@ -98,8 +94,9 @@ export default function snMediaManager(props = {}) {
             const values = Array.isArray(detail.values) ? detail.values : [];
             this.pickerUrls = detail.urls || {};
 
-            // pickerEntries 的 key 是对象键（字符串），而 pickerSelection / togglePicker 用数字 id；
-            // 不转 Number 的话 includes() 严格比较永远 false，勾选态会全部对不上。
+            // pickerEntries keys are object keys (strings) while pickerSelection holds numeric
+            // ids; without Number() the strict includes() comparison never matches and every
+            // checkbox silently reads as unselected.
             const idByPath = {};
             Object.entries(this.pickerEntries).forEach(([id, entry]) => {
                 const path = entry?.value?.path;
@@ -119,9 +116,9 @@ export default function snMediaManager(props = {}) {
                         return id;
                     }
 
-                    // 反查不到（素材已删 / state 被外部改写）：造一个虚拟条目。
-                    // 直接丢掉会让「确认一次」把这些值从字段里抹掉；虚拟 id 不匹配任何瓦片，
-                    // 所以不会误显示成选中，但它仍然占一个名额。
+                    // Unresolvable (media deleted / state edited elsewhere): keep a virtual entry.
+                    // Dropping it would erase these values on the next confirm; it matches no tile,
+                    // so it never renders as selected, yet it still occupies a slot.
                     const virtualId = `path:${value.path}`;
                     this.pickerEntries[virtualId] = {
                         value,
@@ -133,9 +130,9 @@ export default function snMediaManager(props = {}) {
         },
 
         /**
-         * @param {number} id 素材 id
-         * @param {object} value 值对象（path/name/mime/size/width/height）
-         * @param {string} url 预览地址
+         * @param {number} id media id
+         * @param {object} value value object (path / name / mime / size / width / height)
+         * @param {string} url preview url
          */
         togglePicker(id, value, url) {
             if (value) {
@@ -145,7 +142,7 @@ export default function snMediaManager(props = {}) {
             const has = this.pickerSelection.includes(id);
 
             if (this.pickerMultiple) {
-                // 到达上限后不再增加（已选的仍可取消，否则就没法腾位置）
+                // Stop adding at the limit, but keep deselect allowed or no slot could be freed.
                 if (! has && this.pickerMax > 0 && this.pickerSelection.length >= this.pickerMax) {
                     return;
                 }
@@ -159,15 +156,15 @@ export default function snMediaManager(props = {}) {
         },
 
         /**
-         * 底部提示：还可选 N 张 / 已达上限 N 张（0 = 不限，不显示）
+         * Footer hint: N more selectable, or the limit of N is reached (0 = unlimited, no hint).
          */
         pickerRemainingText() {
             if (! this.pickerMax) {
                 return '';
             }
 
-            // 视图里先用 __COUNT__ / __MAX__ 当占位符再走 __('...', ['count' => ...])：
-            // 直接传 ':count' 会被 Laravel 的翻译替换吃掉，拿不到可替换的标记。
+            // Server-side translations carry __COUNT__ / __MAX__ placeholders (same convention as
+            // upload_too_large); the substituted text may contain anything, digits included.
             const remaining = this.pickerMax - this.pickerSelection.length;
 
             return remaining > 0
@@ -180,8 +177,8 @@ export default function snMediaManager(props = {}) {
         },
 
         /**
-         * 确认：按本地选中顺序拼出值对象数组 + 预览地址映射，直接发给字段
-         * （字段侧监听 window 级 sn-media-selected，statePath + fieldId 双匹配才回填）。
+         * Confirm: emit the value objects in local selection order plus the url map. The field
+         * listens on the window event and matches statePath + fieldId.
          */
         confirmPicker() {
             const urls = {};
@@ -216,11 +213,9 @@ export default function snMediaManager(props = {}) {
         },
 
         /**
-         * 上传完成后服务端把新素材的 id/value/url 推下来，前端直接并入选中。
-         *
-         * 事件是 window 级的：页面上每个 picker（含未打开的弹层、repeater 里的小弹层）
-         * 都会收到，不按 statePath + fieldId 双重过滤的话，在 A 弹层上传的图会
-         * 悄悄进 B 弹层的选中态（保存时多出幽灵图片）。
+         * Merges a freshly uploaded item into the selection. The event is window-level, so every
+         * picker on the page receives it: without the statePath + fieldId filter an upload in
+         * modal A silently lands in modal B and surfaces as a ghost image on save.
          */
         onMediaUploaded(detail) {
             if (!detail || !detail.id) {
@@ -237,7 +232,7 @@ export default function snMediaManager(props = {}) {
                 : [detail.id];
         },
 
-        // ===== 多选（本地状态，不发请求；触发批量操作时一次性传给 Filament Action） =====
+        // Multi-select: local state only, ids are handed to the Filament Action in one go.
         toggle(id) {
             this.selected = this.selected.includes(id)
                 ? this.selected.filter((i) => i !== id)
@@ -274,7 +269,7 @@ export default function snMediaManager(props = {}) {
                 : Array.from(new Set([...this.selected, ...ids]));
         },
 
-        // ===== 拖拽上传 =====
+        // Drag and drop upload.
         onDrop(event) {
             this.dragOver = false;
 

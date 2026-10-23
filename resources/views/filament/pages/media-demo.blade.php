@@ -17,7 +17,7 @@
         </div>
     </form>
 
-    {{-- 字段保存值（JSON 契约） --}}
+    {{-- Persisted field value (JSON contract). --}}
     <div class="mt-8 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
         <h2 class="mb-3 flex items-center gap-2 text-sm font-semibold">
             <x-filament::icon :icon="Heroicon::OutlinedClipboardDocument" class="size-4 text-gray-400" />
