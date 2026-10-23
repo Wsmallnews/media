@@ -1,62 +1,100 @@
 # wsmallnews/media
 
-Wsmallnews 生态的素材管理扩展包（Laravel + Filament）。
+Media library for Filament: a library page, a picker modal and two form fields (`MediaPicker`, `FilePicker`), backed by a single upload pipeline.
 
-## 核心概念
+## Core concepts
 
-- **上传即入库**：所有上传走同一 `MediaManager` 管道（写盘 → 读宽高 → 记录 `sn_media` → 返回值对象），没有"黑户"文件。
-- **path 是文件唯一身份证**：相对路径生成后不可变（不移动、不改存储名），"重命名"只改显示名 `name` 列。
-- **删除只删记录**：物理文件永不删除；无引用扫描、无 prune。
-- **值对象契约**：业务字段保存 `{path, name, mime, size, width, height}`（多值字段是对象数组，数组序即排序），渲染零查询；`media()` presenter 兼容纯路径字符串老字段。
-- **URL 变换层**：`media_url($value, 400)` 按当前盘追加缩放参数（阿里云 OSS / 腾讯云 COS / 七牛 / 华为云 OBS / Amazon S3），本地盘出原图；无预生成、无队列。
-- **多格式**：图片 / 视频 / 音频 / PDF / Office / 压缩包 / 任意文件；宽高仅图片计算。
-- **租户隔离**：`team_id`；业务维度（商城 / 门店）用 path 目录前缀表达。
+- **Upload once, record always** — every upload goes through `MediaManager` (write file → read dimensions → insert `sn_media` → return a value object). No orphan files.
+- **`path` is the identity** — the relative path is generated once (`{file_directory}/{Ymd}/{md5}.{ext}`) and never changes. Renaming only touches the display `name`; moving between directories only touches `directory_id`.
+- **Deleting a record never deletes the file** — there is no reference counting and no prune job. Clean up files yourself if a record is gone.
+- **Value object contract** — business columns store `{path, name, mime, size, width, height}` (an array of them for multi-value fields; array order is the order). Rendering needs no query. Plain path strings are still supported through the `media()` presenter.
+- **URL transforms** — `media_url($value, 400)` appends a resize parameter for the current disk's provider (Aliyun OSS, Tencent COS, Qiniu, Huawei OBS, Amazon S3); local disks serve the original file. No pre-generation, no queue.
+- **Any file type** — image / video / audio / PDF / Office / archive / unknown. Width and height are only computed for images.
+- **Tenancy** — isolated by `team_id`; business dimensions (shop, store) are expressed as directory prefixes in the path.
 
-## 安装
+## Installation
 
 ```bash
 composer require wsmallnews/media
 php artisan media:install
 ```
 
-## 使用
+## Form fields
 
 ```php
 use Wsmallnews\Media\Filament\Forms\FilePicker;
 use Wsmallnews\Media\Filament\Forms\MediaPicker;
 
-// 表单字段：单值（商品主图）
+// Pick from the library (single value)
 MediaPicker::make('image')->directory('sn/shop/product')
 
-// 多值 + 排序（商品轮播）
+// Multiple values, drag to reorder
 MediaPicker::make('gallery')->multiple()->directory('sn/shop/product')
 
-// 长方形外观（导航 banner）
+// 3:1 trigger shape
 MediaPicker::make('banner')->ratio(3)->acceptImages()
 
-// 仅 PDF（证书）
+// PDF only
 MediaPicker::make('certificate')->acceptedMimes(['application/pdf'])
 
-// 直接上传（不进素材库：文件落表单附件槽，随表单提交）
-FilePicker::make('proof')->directory('sn/shop/contracts')->acceptedMimes(['application/pdf'])
+// Upload directly, without touching the library
+FilePicker::make('proof')->directory('sn/shop/contracts')->acceptedMimes(['application/pdf']);
 ```
 
+Shared options: `multiple()`, `ratio()`, `acceptedMimes()`, `directory()`, `maxCount()`, `itemsLayout('grid'|'list')`, `triggerSize()`, `triggerIcon()`, `triggerLabel()`, `previewInfo()`, `imagePreview()`, `storePath()`.
+
+`MediaPicker` adds modal options (`pickerSlideOver()`, `pickerWidth()`, …); `FilePicker` adds direct-upload options (`disk()`, `storageOnly()`, …).
+
+## Rendering
+
 ```blade
-{{-- 渲染：presenter 统一入口 --}}
+{{-- Presenter: value object, path string or model --}}
 <img src="{{ media($product->image)->url(400) }}" alt="{{ media($product->image)->alt }}">
 
-{{-- 下载（强制原始文件名） --}}
-<a href="{{ media($award->certificate)->downloadUrl() }}">下载</a>
+{{-- Force download with the original filename --}}
+<a href="{{ media($award->certificate)->downloadUrl() }}">Download</a>
 
-{{-- 老的纯路径字符串字段同样支持 --}}
+{{-- Legacy plain-path columns work too --}}
 <img src="{{ media_url($options['icon_src'], 64) }}">
 ```
 
-## 素材库与演示页
+## Storage layout
 
-`MediaPlugin` 会把素材管理页注册进面板（导航分组等见 `config/sn-media.php` 的 `panel_register`）。
+```
+{file_directory}/{Ymd}/{md5(content)}.{ext}
+```
 
-包内另带一个官方演示页 `MediaDemo`（slug `media-demo`），把 `MediaPicker` / `FilePicker` 的全部能力摆在同一页，用来体验与抄写法。它不落任何业务表，默认**不注册**：把 `config/sn-media.php` 中 `panel_register.pages` 里的 `// MediaDemo::class,` 与文件顶部对应的 `use` 一起放开即可。
+Uploading identical content on the same day reuses the existing record (same path, unique index); the same content on another day becomes a new file. Moving a file between directories does **not** move it on disk.
+
+## Library page and demo
+
+`MediaPlugin` registers the library page in the panel (navigation group etc. under `panel_register` in `config/sn-media.php`).
+
+The package also ships an official demo page (`MediaDemo`, slug `media-demo`) that puts every `MediaPicker` / `FilePicker` capability on one screen. It writes to no business table and is **not registered by default**: uncomment `MediaDemo::class` in `panel_register.pages` together with the matching `use` statement.
+
+## Configuration
+
+`config/sn-media.php`:
+
+| Key | Description |
+| --- | --- |
+| `disk` | Active disk for all uploads (default `public`) |
+| `allowed_disks` | Extra selectable disks for the field-level `disk()` option |
+| `visibility` | Upload visibility (`public` / `private`) |
+| `file_directory` | Root of the on-disk path; the date segment is appended automatically |
+| `max_size` | Max upload size in KB; `null` = unlimited (still bounded by PHP / Livewire) |
+| `mimes` | Lowercase extension whitelist; `null` = unlimited. Executable extensions are always rejected, SVG/HTML stay closed by default |
+| `transforms.providers` | Resize templates per object storage; `null` = serve the original |
+| `transforms.disks` | Disk name → provider key, overrides driver inference (needed for OBS) |
+| `download_url_ttl` / `preview_url_ttl` | Temporary URL lifetime in minutes |
+| `models.media` | Replaceable Media model |
+| `panel_register` | Pages registered by `MediaPlugin` |
+
+## Limits
+
+- Deleting a media record leaves the physical file in place — by design.
+- Width and height are only stored for images; other types report `null`.
+- `formatSize()` renders `—` when a path cannot be resolved back to a record; that is expected, not a bug.
 
 ## License
 
