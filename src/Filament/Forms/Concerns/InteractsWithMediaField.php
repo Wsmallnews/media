@@ -5,6 +5,7 @@ namespace Wsmallnews\Media\Filament\Forms\Concerns;
 use Closure;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
+use Wsmallnews\Media\Support\MediaGallery;
 use Wsmallnews\Media\Support\MediaValue;
 
 /**
@@ -276,9 +277,19 @@ trait InteractsWithMediaField
      * Normalise hydrated state (afterStateHydrated): drop invalid items, keep contract shapes.
      * storePath mode holds path strings, otherwise value objects — the storage contract is
      * declared by the field itself, views always consume value objects (resolveStateEntries).
+     * A MediaValue / MediaGallery cast on the attribute hands objects to the form: their
+     * Arrayable toArray() is the stored shape, so unwrap them before the array checks.
      */
     protected function normalizeHydratedState(mixed $state): mixed
     {
+        if ($state instanceof MediaValue) {
+            $state = $state->toArray();
+        } elseif ($state instanceof MediaGallery) {
+            $state = $state->toArray();
+        } elseif (is_array($state)) {
+            $state = array_map(fn ($item) => $item instanceof MediaValue ? $item->toArray() : $item, $state);
+        }
+
         if ($this->storesPath()) {
             return $this->isMultiple()
                 ? (is_array($state) ? array_values(array_filter($state, fn ($item) => is_string($item) && $item !== '')) : [])

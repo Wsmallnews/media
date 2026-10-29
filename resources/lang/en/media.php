@@ -149,4 +149,13 @@ return [
         'zip' => 'Archive',
         'file' => 'File',
     ],
+    'gallery' => [
+        'label' => 'Gallery',
+        'group_values' => 'Group media',
+        'group_name' => 'Group name',
+        'default_group' => 'Showcase',
+        'add_group' => 'Add group',
+        'unnamed_group' => 'Unnamed group',
+    ],
 ];
+

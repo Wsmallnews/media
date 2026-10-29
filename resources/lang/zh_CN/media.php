@@ -149,4 +149,13 @@ return [
         'zip' => '压缩包',
         'file' => '文件',
     ],
+    'gallery' => [
+        'label' => '图集',
+        'group_values' => '组内媒体',
+        'group_name' => '分组名称',
+        'default_group' => '展示图',
+        'add_group' => '添加分组',
+        'unnamed_group' => '未命名分组',
+    ],
 ];
+

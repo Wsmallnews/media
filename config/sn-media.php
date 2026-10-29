@@ -5,7 +5,7 @@ use Wsmallnews\Media\Models\Media;
 
 // Demo page is not registered by default. Uncomment this and the entry in
 // panel_register.pages to expose it locally.
-// use Wsmallnews\Media\Filament\Pages\MediaDemo;
+use Wsmallnews\Media\Filament\Pages\MediaDemo;
 
 return [
 
@@ -110,7 +110,7 @@ return [
             MediaPage::class,
 
             // Demo page: uncomment together with the `use` statement at the top.
-            // MediaDemo::class,
+            MediaDemo::class,
         ],
     ],
 

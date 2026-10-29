@@ -8,12 +8,15 @@ use Filament\Support\Facades\FilamentAsset;
 use Filament\Support\Facades\FilamentIcon;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Collection;
 use Livewire\Livewire;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Wsmallnews\Media\Commands\MediaInstallCommand;
 use Wsmallnews\Media\Support\LibraryCounts;
 use Wsmallnews\Media\Support\MediaManager;
+use Wsmallnews\Media\Support\MediaResolver;
+use Wsmallnews\Media\Support\MediaValue;
 use Wsmallnews\Media\Support\Utils;
 use Wsmallnews\Support\Features\Modules\Module;
 use Wsmallnews\Support\Features\Modules\ModuleRegistry;
@@ -49,6 +52,38 @@ class MediaServiceProvider extends PackageServiceProvider
 
         // Per-request library counts, shared by every picker in a form.
         $this->app->scoped(LibraryCounts::class);
+
+        // Per-request path -> media record cache, backing MediaValue's lazy lookups.
+        $this->app->scoped(MediaResolver::class);
+
+        // List prewarming: $collection->resolveMedia(['image', 'images']) gathers every path
+        // held in the given fields and fills the resolver cache in one whereIn, so rendering
+        // URLs in a loop afterwards stays query-free.
+        Collection::macro('resolveMedia', function (array $fields): Collection {
+            $paths = [];
+
+            foreach ($this as $model) {
+                foreach ($fields as $field) {
+                    $value = $model->{$field} ?? null;
+
+                    if ($value instanceof MediaValue) {
+                        $paths[] = $value->path;
+                    } elseif (is_string($value) && $value !== '') {
+                        $paths[] = $value;
+                    } elseif (is_iterable($value)) {
+                        foreach ($value as $item) {
+                            $paths[] = $item instanceof MediaValue ? $item->path : (is_array($item) ? ($item['path'] ?? null) : $item);
+                        }
+                    }
+                }
+            }
+
+            if ($paths !== []) {
+                app(MediaResolver::class)->cacheByPath($paths);
+            }
+
+            return $this;
+        });
     }
 
     public function packageBooted(): void

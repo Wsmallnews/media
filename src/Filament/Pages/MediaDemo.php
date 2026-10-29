@@ -4,7 +4,6 @@ namespace Wsmallnews\Media\Filament\Pages;
 
 use BackedEnum;
 use Filament\Actions\Action;
-use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -17,6 +16,7 @@ use Filament\Support\Icons\Heroicon;
 use UnitEnum;
 use Wsmallnews\Media\Filament\Forms\FilePicker;
 use Wsmallnews\Media\Filament\Forms\MediaPicker;
+use Wsmallnews\Support\Filament\Forms\FormComponents as SupportFormComponents;
 use Wsmallnews\Support\Filament\Pages\PageConfiguration;
 
 /**
@@ -219,13 +219,13 @@ class MediaDemo extends Page implements HasForms
                             ->triggerLabel('上传临时文件'),
                     ]),
 
-                // Repeater nesting
+                // Repeater nesting（cardsRepeater 形态：名称提升进卡头）
                 Section::make('Repeater 嵌套')
                     ->description('每行各自独立的字段实例：statePath 带行 key，选中态 / 上传槽 / 值回填都互不串台。这是 morph 压力最大的场景')
                     ->schema([
-                        Repeater::make('rows')
+                        SupportFormComponents::cardsRepeater('rows', 'name')
                             ->label('明细行')
-                            ->columns(4)
+                            ->columns(3)
                             ->schema([
                                 TextInput::make('name')->label('名称'),
                                 MediaPicker::make('cover')
