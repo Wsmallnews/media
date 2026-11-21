@@ -1,11 +1,8 @@
 <?php
 
-use Wsmallnews\Media\Filament\Pages\MediaPage;
 use Wsmallnews\Media\Models\Media;
 
-// Demo page is not registered by default. Uncomment this and the entry in
-// panel_register.pages to expose it locally.
-use Wsmallnews\Media\Filament\Pages\MediaDemo;
+// MediaPage 由宿主 panel 原生注册（AdminPanelProvider pages）；MediaDemo 演示页发布版不注册。
 
 return [
 
@@ -102,16 +99,10 @@ return [
     |--------------------------------------------------------------------------
     | pages: registered by MediaPlugin::register().
     */
-    'panel_register' => [
-        'global_default' => [
-            'navigation_group' => 'sn-media::media.global_default.navigation_group',
-        ],
-        'pages' => [
-            MediaPage::class,
-
-            // Demo page: uncomment together with the `use` statement at the top.
-            MediaDemo::class,
-        ],
-    ],
+    /**
+     * 本包组件不消费 scope：引入无需声明 scopeable。
+     *
+     * 资源清单（默认解开即注册；内存注入 pages([...]) 对同类覆盖）。
+     */
 
 ];

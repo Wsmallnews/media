@@ -44,7 +44,7 @@ class MediaServiceProvider extends PackageServiceProvider
         ModuleRegistry::register(new Module(
             id: static::$name,
             namespace: 'Wsmallnews\\Media',
-            plugin: MediaPlugin::class,
+            plugin: null,
         ));
 
         // Upload pipeline; no facade, to avoid confusion with spatie/laravel-medialibrary.

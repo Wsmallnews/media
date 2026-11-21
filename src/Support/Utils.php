@@ -145,13 +145,5 @@ class Utils
         return (string) self::getModel('media');
     }
 
-    /**
-     * Panel registration config.
-     */
-    public static function getPanelRegister(?string $type = null): mixed
-    {
-        $registers = self::getConfig('panel_register', []);
 
-        return is_null($type) ? $registers : ($registers[$type] ?? []);
-    }
 }

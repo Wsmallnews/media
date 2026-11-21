@@ -27,12 +27,7 @@ class MediaDirectory extends SupportModel
      */
     public function getScopeAttributes(): array
     {
-        $scopes = [];
-        if (SupportUtils::isTenancyEnabled()) {
-            $scopes[] = 'team_id';
-        }
-
-        return $scopes;
+        return ['team_id'];
     }
 
     /**
