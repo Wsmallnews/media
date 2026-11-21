@@ -1,4 +1,5 @@
 @php
+    use Filament\Support\Facades\FilamentAsset;
     use Illuminate\Support\Js;
 
     $props = $getPickerProps();
@@ -9,7 +10,7 @@
 <x-dynamic-component :component="$getFieldWrapperView()" :field="$field" label-tag="div">
     <div
         x-load
-        x-load-src="{{ \Filament\Support\Facades\FilamentAsset::getAlpineComponentSrc('sn-media-picker-field', 'wsmallnews/media') }}"
+        x-load-src="{{ FilamentAsset::getAlpineComponentSrc('sn-media-picker-field', 'wsmallnews/media') }}"
         x-data="snMediaPickerField({{ Js::from($props) }})"
         x-on:sn-media-selected.window="onSelected($event.detail)"
         x-on:sn-media-picker-closed.window="onClosed($event.detail)"

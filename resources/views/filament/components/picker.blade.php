@@ -1,7 +1,9 @@
 @php
+    use Filament\Support\Facades\FilamentAsset;
     use Filament\Support\Icons\Heroicon;
     use Illuminate\Support\Js;
     use Wsmallnews\Media\Enums\MediaType;
+    use Wsmallnews\Media\Filament\Components\Picker;
 
     $medias = $this->medias;
 @endphp
@@ -19,7 +21,7 @@
     {{-- Key must be sourced from $fieldId like the field side; md5(statePath) collides across hosts sharing a state path. --}}
     wire:key="sn-media-picker-{{ $fieldId }}"
     x-load
-    x-load-src="{{ \Filament\Support\Facades\FilamentAsset::getAlpineComponentSrc('sn-media-manager', 'wsmallnews/media') }}"
+    x-load-src="{{ FilamentAsset::getAlpineComponentSrc('sn-media-manager', 'wsmallnews/media') }}"
     x-data="snMediaManager({{ Js::from([
         'uploadingLabel' => __('sn-media::media.notifications.uploading'),
         'rejectedLabel' => __('sn-media::media.notifications.upload_rejected_default'),
@@ -184,7 +186,7 @@
             <x-filament::pagination
                 class="w-full"
                 :paginator="$medias"
-                :page-options="\Wsmallnews\Media\Filament\Components\Picker::PER_PAGE_OPTIONS"
+                :page-options="Picker::PER_PAGE_OPTIONS"
                 current-page-option-property="perPage"
             />
         </div>

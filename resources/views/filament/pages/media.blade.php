@@ -1,13 +1,16 @@
 @php
+    use Filament\Support\Facades\FilamentAsset;
     use Filament\Support\Icons\Heroicon;
     use Wsmallnews\Media\Enums\MediaType;
+    use Wsmallnews\Media\Filament\Pages\MediaPage;
+    use Wsmallnews\Media\Support\MediaValue;
 @endphp
 
 <x-filament-panels::page>
     <div
         {{-- Alpine assets need an explicit x-load, otherwise the x-data function is undefined and the whole subtree breaks. --}}
         x-load
-        x-load-src="{{ \Filament\Support\Facades\FilamentAsset::getAlpineComponentSrc('sn-media-manager', 'wsmallnews/media') }}"
+        x-load-src="{{ FilamentAsset::getAlpineComponentSrc('sn-media-manager', 'wsmallnews/media') }}"
         x-data="snMediaManager({{ \Illuminate\Support\Js::from([
             'uploadingLabel' => __('sn-media::media.notifications.uploading'),
             'rejectedLabel' => __('sn-media::media.notifications.upload_rejected_default'),
@@ -213,7 +216,7 @@
                 <x-filament::pagination
                     class="w-full"
                     :paginator="$this->medias"
-                    :page-options="\Wsmallnews\Media\Filament\Pages\MediaPage::PER_PAGE_OPTIONS"
+                    :page-options="MediaPage::PER_PAGE_OPTIONS"
                     current-page-option-property="perPage"
                 />
             </div>
@@ -256,7 +259,7 @@
                     </div>
 
                     <div class="flex flex-wrap items-center justify-end gap-2">
-                        <x-filament::button tag="a" :href="\Wsmallnews\Media\Support\MediaValue::make($previewMedia)->downloadUrl()" target="_blank" size="sm" color="gray" outlined :icon="Heroicon::OutlinedArrowDownTray">
+                        <x-filament::button tag="a" :href="MediaValue::make($previewMedia)->downloadUrl()" target="_blank" size="sm" color="gray" outlined :icon="Heroicon::OutlinedArrowDownTray">
                             {{ __('sn-media::media.list.download') }}
                         </x-filament::button>
                         <x-filament::button type="button" size="sm" color="gray" outlined wire:click="mountAction('snMediaCopyPath', { id: {{ $previewMedia->id }} })">
